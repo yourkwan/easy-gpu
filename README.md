@@ -15,9 +15,7 @@
 - **自动刷新**：默认每 5 秒，可配置；面板带刷新倒计时与手动刷新按钮
 - **复用系统 SSH**：直接读取 `~/.ssh/config` 与密钥 / ssh-agent，无需在扩展中保存任何密码
 
-| GPU 显存与用户 | CPU 与内存 |
-| :---: | :---: |
-| ![GPU 面板](docs/screenshot-gpu.png) | ![CPU 与内存](docs/screenshot-system.png) |
+![GPU 显存与用户 / CPU 与内存](docs/screenshot-details.png)
 
 ## 安装
 
