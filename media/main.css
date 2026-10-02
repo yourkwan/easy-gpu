@@ -149,7 +149,8 @@ body {
 .countdown {
   font-size: 12px;
   color: var(--easy-muted);
-  min-width: 62px;
+  /* 固定宽度，避免「刷新中 · 3s」与「12s 后刷新」切换时按钮左右跳动 */
+  min-width: 96px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

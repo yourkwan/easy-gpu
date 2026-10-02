@@ -47,6 +47,21 @@
         "command": "easy-gpu.refreshNow",
         "title": "立即刷新",
         "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.setPassword",
+        "title": "设置 SSH 密码",
+        "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.forgetPassword",
+        "title": "清除已保存的密码 / 私钥口令",
+        "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.selectPrivateKey",
+        "title": "选择私钥文件（登录方式）",
+        "category": "Easy GPU"
       }
     ],
     "configuration": {
@@ -76,6 +91,31 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "在状态栏显示 GPU / CPU / 内存概览。"
+        },
+        "easy-gpu.connectionMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "systemSsh",
+            "builtin"
+          ],
+          "default": "auto",
+          "markdownEnumDescriptions": [
+            "优先使用系统 ssh（复用 ~/.ssh/config、密钥、agent）；认证失败时自动回退到内置客户端并提示输入密码。",
+            "只使用系统 ssh，仅支持免密（密钥 / ssh-agent）登录。",
+            "只使用内置 SSH 客户端：支持密码、私钥与 ssh-agent，不依赖本机 OpenSSH。"
+          ],
+          "markdownDescription": "连接远程服务器的方式。"
+        },
+        "easy-gpu.rememberPassword": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "密码 / 私钥口令验证成功后，保存到系统钥匙串（VS Code SecretStorage），下次自动连接；关闭后只在输入时使用一次。"
+        },
+        "easy-gpu.privateKeyPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "指定登录用的私钥文件（可选），支持 `~`。留空则使用 `~/.ssh/config` 的 `IdentityFile` 与 `~/.ssh/id_*` 默认密钥。加密私钥会提示输入口令；PuTTY 的 `.ppk` 格式需先转成 OpenSSH 格式。"
         }
       }
     }
@@ -85,8 +125,12 @@
     "watch": "tsc -w -p ./",
     "package": "vsce package"
   },
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/ssh2": "^1.15.6",
     "@types/vscode": "^1.74.0",
     "@vscode/vsce": "^3.2.1",
     "typescript": "^5.4.5"

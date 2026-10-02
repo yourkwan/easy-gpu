@@ -74,13 +74,12 @@ smi() {
 
 HAS_SMI=0
 GPU_CSV=""
-UUID_CSV=""
 PROC_CSV=""
 if command -v nvidia-smi >/dev/null 2>&1; then
-  GPU_CSV=$(smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null)
+  # uuid 与其它字段一次查出，少一次 nvidia-smi 调用（nvidia-smi 是刷新耗时的大头）
+  GPU_CSV=$(smi --query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total,uuid --format=csv,noheader,nounits 2>/dev/null)
   if [ -n "$GPU_CSV" ]; then
     HAS_SMI=1
-    UUID_CSV=$(smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)
     PROC_CSV=$(smi --query-compute-apps=gpu_uuid,pid,used_memory --format=csv,noheader,nounits 2>/dev/null)
   fi
 fi
@@ -103,7 +102,7 @@ printf '{"hostname":"%s","timestamp":%s,"nvidiaSmi":%s,"cpu":{"usage":%s,"cores"
 FIRST=1
 while IFS= read -r line; do
   [ -n "$line" ] || continue
-  IFS=',' read -r f_idx f_name f_temp f_util f_mu f_mt <<< "$line"
+  IFS=',' read -r f_idx f_name f_temp f_util f_mu f_mt f_uuid <<< "$line"
   idx=$(printf '%s' "$f_idx" | tr -d ' ')
   [ -n "$idx" ] || idx=0
   name=$(printf '%s' "$f_name" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
@@ -111,13 +110,13 @@ while IFS= read -r line; do
   util=$(num "$(printf '%s' "$f_util" | tr -d ' ')")
   mu=$(num "$(printf '%s' "$f_mu" | tr -d ' ')")
   mt=$(num "$(printf '%s' "$f_mt" | tr -d ' ')")
+  UUID=$(printf '%s' "$f_uuid" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
   [ "$FIRST" = 1 ] || printf ','
   FIRST=0
   printf '{"index":%s,"name":"%s","temperature":%s,"utilization":%s,"memoryUsed":%s,"memoryTotal":%s,"processes":[' \
     "$idx" "$(esc "$name")" "$temp" "$util" "$mu" "$mt"
 
-  UUID=$(printf '%s\n' "$UUID_CSV" | awk -F, -v i="$idx" '{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); if ($1 == i) { print $2; exit }}')
   PFIRST=1
   while IFS= read -r pline; do
     [ -n "$pline" ] || continue

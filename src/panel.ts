@@ -43,7 +43,7 @@ export class DashboardPanel {
             this.postState();
             break;
           case 'refresh':
-            void this.service.refresh();
+            void this.service.refresh({ manual: true });
             break;
           case 'selectHost':
             void vscode.commands.executeCommand('easy-gpu.selectHost');

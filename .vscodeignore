@@ -3,6 +3,5 @@
 **/*.ts
 **/*.map
 dev/**
-node_modules/**
 tsconfig.json
 **/tsconfig.json

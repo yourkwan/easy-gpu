@@ -1,18 +1,13 @@
-import * as fs from 'fs';
 import { parseCollectorOutput } from './parse';
-import { runRemoteScript } from './ssh';
 import { Snapshot } from './types';
 
 export const COLLECT_TIMEOUT_MS = 25000;
 
-/** 读取本地的采集脚本，通过 ssh 管道在远程执行并解析为快照。 */
-export async function collectSnapshot(
-  host: string,
-  scriptPath: string,
-  extraArgs: string[],
-  timeoutMs = COLLECT_TIMEOUT_MS
-): Promise<Snapshot> {
-  const script = fs.readFileSync(scriptPath, 'utf8');
-  const result = await runRemoteScript(host, script, extraArgs, timeoutMs);
-  return parseCollectorOutput(result.stdout);
+/** 执行采集脚本的方式：返回脚本的 stdout（系统 ssh 或内置客户端）。 */
+export type ScriptRunner = (script: string) => Promise<string>;
+
+/** 通过给定的传输方式执行采集脚本，并把输出解析为快照。 */
+export async function collectSnapshot(script: string, run: ScriptRunner): Promise<Snapshot> {
+  const stdout = await run(script);
+  return parseCollectorOutput(stdout);
 }

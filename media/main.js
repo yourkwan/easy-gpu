@@ -12,6 +12,7 @@
   var history = [];
   var lastSampleKey = '';
   var skeletonBuilt = false;
+  var refreshStartedAt = 0;
 
   var gpuCards = {}; // index -> card refs
   var refs = {};
@@ -441,7 +442,14 @@
     }
     var right = el('span');
     if (state.snapshot) {
-      right.textContent = 'GPU 数据来自 nvidia-smi · SSH 复用系统配置';
+      var parts = ['GPU 数据来自 nvidia-smi'];
+      if (state.channel) {
+        parts.push(state.channel === 'builtin' ? '内置客户端' : '系统 ssh');
+      }
+      if (state.durationMs) {
+        parts.push('上次刷新 ' + (state.durationMs / 1000).toFixed(1) + 's');
+      }
+      right.textContent = parts.join(' · ');
     }
     footer.appendChild(left);
     footer.appendChild(right);
@@ -526,7 +534,15 @@
       return;
     }
     if (state.status === 'connecting') {
-      node.textContent = '刷新中…';
+      // 刷新中也显示倒计时：按「本次刷新开始 + 间隔」推算下一次刷新
+      var started = refreshStartedAt || Date.now();
+      var left = Math.ceil((started + config.refreshInterval * 1000 - Date.now()) / 1000);
+      if (left > 0) {
+        node.textContent = '刷新中 · ' + left + 's';
+      } else {
+        var elapsed = Math.max(1, Math.round((Date.now() - started) / 1000));
+        node.textContent = '刷新中… 已用 ' + elapsed + 's';
+      }
       return;
     }
     if (!state.updatedAt) {
@@ -555,8 +571,13 @@
   window.addEventListener('message', function (event) {
     var message = event.data || {};
     if (message.type === 'state') {
+      var previousStatus = state.status;
       state = message.state || state;
       config = message.config || config;
+      if (state.status === 'connecting' && previousStatus !== 'connecting') {
+        // 记录本次刷新的开始时间，用于在「刷新中」时推算下次刷新倒计时
+        refreshStartedAt = Date.now();
+      }
       if (state.snapshot) {
         pushHistory(state.snapshot);
       }

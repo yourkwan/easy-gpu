@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
 # 测试用假 nvidia-smi，模拟 4 张 RTX 3090 及多用户进程
+# 设置 FAKE_SMI_LOG 可记录调用参数，用于断言调用次数（性能回归）
+if [ -n "$FAKE_SMI_LOG" ]; then
+  echo "$*" >> "$FAKE_SMI_LOG"
+fi
+
 case "$*" in
-  *"--query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total"*)
+  *"--query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total,uuid"*)
     cat <<'EOF'
-0, NVIDIA GeForce RTX 3090, 71, 61, 18610, 24576
-1, NVIDIA GeForce RTX 3090, 87, 100, 13692, 24576
-2, NVIDIA GeForce RTX 3090, 78, 97, 20319, 24576
-3, NVIDIA GeForce RTX 3090, 83, 100, 19399, 24576
-EOF
-    ;;
-  *"--query-gpu=index,uuid"*)
-    cat <<'EOF'
-0, GPU-aaaaaaaa-1111
-1, GPU-bbbbbbbb-2222
-2, GPU-cccccccc-3333
-3, GPU-dddddddd-4444
+0, NVIDIA GeForce RTX 3090, 71, 61, 18610, 24576, GPU-aaaaaaaa-1111
+1, NVIDIA GeForce RTX 3090, 87, 100, 13692, 24576, GPU-bbbbbbbb-2222
+2, NVIDIA GeForce RTX 3090, 78, 97, 20319, 24576, GPU-cccccccc-3333
+3, NVIDIA GeForce RTX 3090, 83, 100, 19399, 24576, GPU-dddddddd-4444
 EOF
     ;;
   *"--query-compute-apps=gpu_uuid,pid,used_memory"*)

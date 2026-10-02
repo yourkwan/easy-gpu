@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MonitorState, Snapshot } from './types';
+import { Channel, ConnectionMode, MonitorState, Snapshot } from './types';
 
 function formatGB(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -20,6 +20,9 @@ function formatMB(mb: number): string {
 /** 状态栏概览：GPU 显存/温度 + CPU + 内存。 */
 export class StatusBar implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
+  private lastMode?: ConnectionMode;
+  private lastChannel?: Channel;
+  private lastDurationMs?: number;
 
   constructor() {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -37,6 +40,9 @@ export class StatusBar implements vscode.Disposable {
 
   update(state: MonitorState): void {
     this.item.backgroundColor = undefined;
+    this.lastMode = state.mode;
+    this.lastChannel = state.channel;
+    this.lastDurationMs = state.durationMs;
 
     if (state.status === 'idle' || !state.host) {
       this.item.text = '$(server) Easy GPU · 未配置服务器';
@@ -131,6 +137,12 @@ export class StatusBar implements vscode.Disposable {
     tooltip.appendMarkdown(
       `内存 ${formatGB(snapshot.memory.used)} / ${formatGB(snapshot.memory.total)} GB（可用 ${formatGB(snapshot.memory.available)} GB）\n\n`
     );
+    if (this.lastMode) {
+      const channel =
+        this.lastChannel === 'builtin' ? '内置客户端' : this.lastChannel === 'systemSsh' ? '系统 ssh' : '—';
+      const duration = this.lastDurationMs ? `，耗时 ${(this.lastDurationMs / 1000).toFixed(1)}s` : '';
+      tooltip.appendMarkdown(`连接方式：${describeMode(this.lastMode)}\n\n实际通道：${channel}${duration}\n\n`);
+    }
     tooltip.appendMarkdown('点击打开监控面板');
     return tooltip;
   }
@@ -138,4 +150,14 @@ export class StatusBar implements vscode.Disposable {
   dispose(): void {
     this.item.dispose();
   }
+}
+
+function describeMode(mode: ConnectionMode): string {
+  if (mode === 'builtin') {
+    return '内置客户端（支持密码 / 密钥 / agent）';
+  }
+  if (mode === 'systemSsh') {
+    return '系统 ssh（仅免密）';
+  }
+  return '自动（系统 ssh 优先，认证失败时回退密码登录）';
 }

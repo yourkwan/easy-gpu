@@ -1,59 +1,12 @@
 import { spawn } from 'child_process';
-import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { SshAuthError, SshHostKeyError } from './errors';
 
-export interface SshHostEntry {
-  alias: string;
-  hostName?: string;
-  user?: string;
-  port?: string;
-}
-
-/** 解析 ~/.ssh/config（仅处理常见字段），用于在 QuickPick 中列出可选服务器。 */
-export function readSshConfigHosts(configPath = path.join(os.homedir(), '.ssh', 'config')): SshHostEntry[] {
-  let content: string;
-  try {
-    content = fs.readFileSync(configPath, 'utf8');
-  } catch {
-    return [];
-  }
-
-  const entries: SshHostEntry[] = [];
-  let current: SshHostEntry | undefined;
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-    const match = /^(\S+)\s+(.+)$/.exec(line);
-    if (!match) {
-      continue;
-    }
-    const key = match[1].toLowerCase();
-    const value = match[2].trim();
-
-    if (key === 'host') {
-      // 一个 Host 行可能带多个别名，仅取第一个非通配别名
-      const aliases = value.split(/\s+/).filter((a) => !a.includes('*') && !a.includes('?'));
-      if (aliases.length) {
-        current = { alias: aliases[0] };
-        entries.push(current);
-      } else {
-        current = undefined;
-      }
-    } else if (current) {
-      if (key === 'hostname') {
-        current.hostName = value;
-      } else if (key === 'user') {
-        current.user = value;
-      } else if (key === 'port') {
-        current.port = value;
-      }
-    }
-  }
-  return entries;
+export interface RunResult {
+  stdout: string;
+  stderr: string;
+  code: number | null;
 }
 
 function baseSshArgs(): string[] {
@@ -73,12 +26,6 @@ function baseSshArgs(): string[] {
     args.push('-o', 'ControlMaster=auto', '-o', `ControlPath=${controlPath}`, '-o', 'ControlPersist=120');
   }
   return args;
-}
-
-export interface RunResult {
-  stdout: string;
-  stderr: string;
-  code: number | null;
 }
 
 /**
@@ -127,7 +74,7 @@ export function runRemoteScript(
       finish(() => {
         const message =
           (err as NodeJS.ErrnoException).code === 'ENOENT'
-            ? '未找到系统 ssh 命令，请先安装 OpenSSH 客户端'
+            ? '未找到系统 ssh 命令，请先安装 OpenSSH 客户端，或把 easy-gpu.connectionMode 设为 builtin'
             : `无法启动 ssh：${err.message}`;
         reject(new Error(message));
       });
@@ -139,8 +86,7 @@ export function runRemoteScript(
           resolve({ stdout, stderr, code });
           return;
         }
-        const detail = friendlySshError(code, stderr.trim());
-        reject(new Error(detail));
+        reject(classifySshFailure(code, stderr.trim()));
       });
     });
 
@@ -152,25 +98,28 @@ export function runRemoteScript(
   });
 }
 
-function friendlySshError(code: number | null, stderr: string): string {
+/** 把 ssh 的退出码与 stderr 归类为可识别的错误类型。 */
+export function classifySshFailure(code: number | null, stderr: string): Error {
   if (code === 255) {
-    if (/Permission denied/i.test(stderr)) {
-      return 'SSH 认证失败：请确认已配置免密登录（ssh-copy-id 或 ssh-agent），本扩展不支持交互式输入密码';
-    }
-    if (/Could not resolve hostname/i.test(stderr)) {
-      return `无法解析服务器地址：${stderr.split('\n')[0]}`;
-    }
-    if (/Connection refused/i.test(stderr)) {
-      return '连接被拒绝：请确认服务器 SSH 端口已开放';
-    }
-    if (/Connection timed out|No route to host/i.test(stderr)) {
-      return '连接超时：服务器不可达，请检查网络或地址';
+    if (/Permission denied|Too many authentication failures|no supported authentication methods/i.test(stderr)) {
+      return new SshAuthError(
+        'SSH 认证失败：密钥 / ssh-agent 未通过。可在终端执行 ssh-copy-id 配置免密，或使用密码登录（命令：Easy GPU: 设置 SSH 密码）'
+      );
     }
     if (/Host key verification failed/i.test(stderr)) {
-      return '主机密钥校验失败：请先在终端手动 ssh 一次并确认指纹';
+      return new SshHostKeyError('主机密钥校验失败：请先在终端手动 ssh 一次并确认指纹');
     }
-    return `SSH 连接失败：${stderr.split('\n').filter(Boolean).pop() ?? '未知错误'}`;
+    if (/Could not resolve hostname/i.test(stderr)) {
+      return new Error(`无法解析服务器地址：${stderr.split('\n')[0]}`);
+    }
+    if (/Connection refused/i.test(stderr)) {
+      return new Error('连接被拒绝：请确认服务器 SSH 端口已开放');
+    }
+    if (/Connection timed out|No route to host/i.test(stderr)) {
+      return new Error('连接超时：服务器不可达，请检查网络或地址');
+    }
+    return new Error(`SSH 连接失败：${stderr.split('\n').filter(Boolean).pop() ?? '未知错误'}`);
   }
-  const firstLine = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
-  return `远程命令执行失败（退出码 ${code}）${firstLine ? `：${firstLine}` : ''}`;
+  const detail = stderr.split('\n').map((line) => line.trim()).filter(Boolean).pop();
+  return new Error(`远程命令执行失败（退出码 ${code}）${detail ? `：${detail}` : ''}`);
 }

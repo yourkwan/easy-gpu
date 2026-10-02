@@ -106,14 +106,30 @@
               status: 'ok',
               host: 'gpu-lab',
               snapshot: makeSnapshot(),
-              updatedAt: Date.now()
+              updatedAt: Date.now(),
+              mode: 'builtin',
+              channel: 'builtin',
+              durationMs: 700 + Math.round(Math.random() * 500)
             },
             config: { refreshInterval: 3 }
           }
         })
       );
     };
-    push();
-    setInterval(push, 3000);
+    // 模拟真实节奏：先进入「刷新中」，0.8 秒后返回数据
+    var cycle = function () {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'state',
+            state: { status: 'connecting', host: 'gpu-lab', mode: 'builtin' },
+            config: { refreshInterval: 3 }
+          }
+        })
+      );
+      setTimeout(push, 800);
+    };
+    cycle();
+    setInterval(cycle, 3000);
   };
 })();
