@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# 测试用假 ssh：忽略主机与参数，直接把 stdin 交给本地 bash 执行
+if [ "$EASYGUP_TEST_FAIL" = "1" ]; then
+  echo "yourkwan@fake-host: Permission denied (publickey)." >&2
+  exit 255
+fi
+exec bash -s

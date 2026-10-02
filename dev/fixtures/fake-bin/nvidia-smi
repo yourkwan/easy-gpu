@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# 测试用假 nvidia-smi，模拟 4 张 RTX 3090 及多用户进程
+case "$*" in
+  *"--query-gpu=index,name,temperature.gpu,utilization.gpu,memory.used,memory.total"*)
+    cat <<'EOF'
+0, NVIDIA GeForce RTX 3090, 71, 61, 18610, 24576
+1, NVIDIA GeForce RTX 3090, 87, 100, 13692, 24576
+2, NVIDIA GeForce RTX 3090, 78, 97, 20319, 24576
+3, NVIDIA GeForce RTX 3090, 83, 100, 19399, 24576
+EOF
+    ;;
+  *"--query-gpu=index,uuid"*)
+    cat <<'EOF'
+0, GPU-aaaaaaaa-1111
+1, GPU-bbbbbbbb-2222
+2, GPU-cccccccc-3333
+3, GPU-dddddddd-4444
+EOF
+    ;;
+  *"--query-compute-apps=gpu_uuid,pid,used_memory"*)
+    cat <<'EOF'
+GPU-aaaaaaaa-1111, 1001, 12454
+GPU-aaaaaaaa-1111, 1002, 6140
+GPU-bbbbbbbb-2222, 1003, 1788
+GPU-bbbbbbbb-2222, 1004, 11886
+GPU-cccccccc-3333, 1005, 3502
+GPU-cccccccc-3333, 1006, 10662
+GPU-cccccccc-3333, 1007, 6134
+GPU-dddddddd-4444, 1008, 3502
+GPU-dddddddd-4444, 1009, 6110
+GPU-dddddddd-4444, 1010, 6876
+GPU-dddddddd-4444, 1011, 684
+GPU-dddddddd-4444, 1012, 682
+GPU-dddddddd-4444, 1013, 814
+EOF
+    ;;
+  *)
+    echo "fake nvidia-smi: unsupported args: $*" >&2
+    exit 1
+    ;;
+esac

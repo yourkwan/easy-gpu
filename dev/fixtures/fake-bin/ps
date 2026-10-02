@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# 测试用假 ps，返回与假 nvidia-smi 中 pid 对应的用户
+cat <<'EOF'
+ 1001 lj python3
+ 1002 wzs python
+ 1003 gfr train.py
+ 1004 lj python3
+ 1005 wzs python
+ 1006 lj python
+ 1007 wzs python
+ 1008 wzs python
+ 1009 wzs python
+ 1010 wzs python
+ 1011 wzs python
+ 1012 wzs python
+ 1013 wzs python
+EOF

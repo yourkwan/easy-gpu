@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="../media/main.css" rel="stylesheet">
+<title>Easy GPU Preview (mock)</title>
+</head>
+<body>
+<div class="wrap">
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-logo">GPU</span>
+    <div class="brand-text">
+      <div class="title">Easy GPU</div>
+      <div class="subtitle" id="host-line">未配置服务器</div>
+    </div>
+  </div>
+  <div class="actions">
+    <span class="status-pill" id="status-pill"><span class="dot"></span><span id="status-text">初始化…</span></span>
+    <span class="countdown" id="countdown"></span>
+    <button class="btn" id="btn-refresh">刷新</button>
+    <button class="btn" id="btn-host">切换服务器</button>
+    <button class="btn ghost" id="btn-settings">设置</button>
+  </div>
+</header>
+<div class="banner hidden" id="banner"></div>
+<main id="content"></main>
+<footer class="footer" id="footer"></footer>
+</div>
+
+<script>
+  // 模拟 VS Code webview API
+  window.acquireVsCodeApi = function () {
+    return {
+      postMessage: function (msg) {
+        if (msg && msg.type === 'ready') {
+          window.__easyGpuFeed && window.__easyGpuFeed();
+        }
+      },
+      getState: function () { return undefined; },
+      setState: function () {}
+    };
+  };
+</script>
+<script src="mock-data.js"></script>
+<script src="../media/main.js"></script>
+</body>
+</html>

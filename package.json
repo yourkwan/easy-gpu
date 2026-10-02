@@ -1,0 +1,94 @@
+{
+  "name": "easy-gpu",
+  "displayName": "Easy GPU",
+  "description": "监控远程 SSH 服务器的 GPU / CPU / 内存状态（gpustat 风格面板），支持各用户显存占用统计。",
+  "version": "1.0.0",
+  "publisher": "yourkwan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourkwan/easy-gpu"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "gpu",
+    "gpustat",
+    "nvidia",
+    "ssh",
+    "monitor"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "easy-gpu.openDashboard",
+        "title": "打开监控面板",
+        "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.selectHost",
+        "title": "选择 SSH 服务器",
+        "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.refreshNow",
+        "title": "立即刷新",
+        "category": "Easy GPU"
+      }
+    ],
+    "configuration": {
+      "title": "Easy GPU",
+      "properties": {
+        "easy-gpu.host": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "远程服务器的 SSH 主机：可以是 `~/.ssh/config` 中的别名，或 `user@host`。扩展直接复用系统 ssh 与密钥，不会保存任何密码。"
+        },
+        "easy-gpu.refreshInterval": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 600,
+          "markdownDescription": "自动刷新间隔（秒）。"
+        },
+        "easy-gpu.sshExtraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "传给系统 `ssh` 的额外参数，例如 `[\"-p\", \"2222\"]`。"
+        },
+        "easy-gpu.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "在状态栏显示 GPU / CPU / 内存概览。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.74.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.4.5"
+  }
+}
