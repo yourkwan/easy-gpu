@@ -104,10 +104,9 @@
             type: 'state',
             state: {
               status: 'ok',
-              host: 'gpu-lab',
+              host: 'wzszju@gpu-lab',
               snapshot: makeSnapshot(),
               updatedAt: Date.now(),
-              mode: 'builtin',
               channel: 'builtin',
               durationMs: 700 + Math.round(Math.random() * 500)
             },
@@ -122,7 +121,7 @@
         new MessageEvent('message', {
           data: {
             type: 'state',
-            state: { status: 'connecting', host: 'gpu-lab', mode: 'builtin' },
+            state: { status: 'connecting', host: 'wzszju@gpu-lab' },
             config: { refreshInterval: 3 }
           }
         })

@@ -38,8 +38,14 @@ export interface BuiltinSshOptions {
   hostKeys: HostKeyStore;
   interaction: AuthInteraction;
   rememberPassword: () => boolean;
-  /** 用户显式指定的私钥文件；返回空表示使用 ~/.ssh/config 与 ~/.ssh 默认密钥 */
-  privateKeyPath?: () => string | undefined;
+}
+
+/** 单次连接使用的凭据信息：凭据键（user@host:port）与私钥文件 */
+export interface ConnectionAuth {
+  /** 钥匙串中保存密码 / 私钥口令的键，默认用输入的地址 */
+  credentialKey?: string;
+  /** 本条连接指定的私钥文件 */
+  keyPath?: string;
 }
 
 interface ActiveSession {
@@ -98,8 +104,13 @@ export class BuiltinSshTransport {
     this.closeSession();
   }
 
-  async exec(input: string, script: string, timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
-    const client = await this.ensureClient(input, timeoutMs);
+  async exec(
+    input: string,
+    script: string,
+    timeoutMs: number,
+    auth: ConnectionAuth = {}
+  ): Promise<{ stdout: string; stderr: string }> {
+    const client = await this.ensureClient(input, timeoutMs, auth);
     try {
       return await this.execOn(client, script, timeoutMs);
     } catch (error) {
@@ -112,7 +123,7 @@ export class BuiltinSshTransport {
 
   // ---------------- 连接管理 ----------------
 
-  private async ensureClient(input: string, timeoutMs: number): Promise<Client> {
+  private async ensureClient(input: string, timeoutMs: number, auth: ConnectionAuth): Promise<Client> {
     const resolved = resolveHost(input);
     const target = `${resolved.user}@${resolved.host}:${resolved.port}`;
     if (this.session && this.session.target === target) {
@@ -120,8 +131,10 @@ export class BuiltinSshTransport {
     }
     this.closeSession();
 
-    const prepared = await this.prepareKey(input, resolved);
-    let password = await this.options.credentials.get(input, 'password');
+    // 凭据按「用户@服务器:端口」保存，同一台服务器的不同用户各用各的密码与私钥
+    const credentialKey = auth.credentialKey ?? input;
+    const prepared = await this.prepareKey(credentialKey, resolved, auth.keyPath);
+    let password = await this.options.credentials.get(credentialKey, 'password');
     let client: Client | undefined;
 
     // 第一次尝试：已保存的密码 + 私钥（或私钥口令）+ ssh-agent
@@ -138,14 +151,14 @@ export class BuiltinSshTransport {
       }
       if (password) {
         // 保存的密码可能已失效，清掉后让用户重新输入
-        await this.options.credentials.delete(input, 'password');
+        await this.options.credentials.delete(credentialKey, 'password');
         password = undefined;
       }
     }
 
     // 第二次尝试：弹框输入登录密码
     if (!client) {
-      const entered = await this.options.interaction.promptPassword(input);
+      const entered = await this.options.interaction.promptPassword(target);
       if (!entered) {
         throw new SshAuthError('已取消输入密码', true);
       }
@@ -156,7 +169,7 @@ export class BuiltinSshTransport {
         timeoutMs
       });
       if (this.options.rememberPassword()) {
-        await this.options.credentials.store(input, 'password', entered);
+        await this.options.credentials.store(credentialKey, 'password', entered);
       }
     }
 
@@ -171,9 +184,12 @@ export class BuiltinSshTransport {
    * 准备私钥：显式配置的路径优先，否则用 ssh config 的 IdentityFile 与 ~/.ssh 默认密钥。
    * 未加密的私钥直接使用；加密私钥先用已保存口令解锁，必要时弹框询问。
    */
-  private async prepareKey(input: string, resolved: ResolvedHost): Promise<PreparedKey | undefined> {
-    const configured = this.options.privateKeyPath?.()?.trim();
-    const configuredPath = configured ? expandHome(configured) : undefined;
+  private async prepareKey(
+    credentialKey: string,
+    resolved: ResolvedHost,
+    keyPath?: string
+  ): Promise<PreparedKey | undefined> {
+    const configuredPath = keyPath?.trim() ? expandHome(keyPath.trim()) : undefined;
     const candidates = configuredPath
       ? [configuredPath]
       : [...resolved.identityFiles, ...DEFAULT_IDENTITY_FILES.map((name) => path.join(os.homedir(), '.ssh', name))];
@@ -184,7 +200,9 @@ export class BuiltinSshTransport {
       const content = readTextFile(file);
       if (!content) {
         if (configuredPath && file === configuredPath) {
-          throw new Error(`找不到私钥文件：${configuredPath}（请在设置 easy-gpu.privateKeyPath 中检查路径）`);
+          throw new Error(
+            `找不到私钥文件：${configuredPath}（可在命令面板执行「Easy GPU: 管理连接与密码」重新选择）`
+          );
         }
         continue;
       }
@@ -210,17 +228,17 @@ export class BuiltinSshTransport {
     }
 
     // 加密私钥：先试保存的口令
-    let passphrase = await this.options.credentials.get(input, 'passphrase');
+    let passphrase = await this.options.credentials.get(credentialKey, 'passphrase');
     if (passphrase) {
       if (!(sshUtils.parseKey(encrypted.content, passphrase) instanceof Error)) {
         return { path: encrypted.path, content: encrypted.content, passphrase };
       }
-      await this.options.credentials.delete(input, 'passphrase');
+      await this.options.credentials.delete(credentialKey, 'passphrase');
       passphrase = undefined;
     }
 
     // 弹框询问私钥口令
-    const entered = await this.options.interaction.promptPassphrase(input, encrypted.path);
+    const entered = await this.options.interaction.promptPassphrase(credentialKey, encrypted.path);
     if (!entered) {
       return undefined;
     }
@@ -228,7 +246,7 @@ export class BuiltinSshTransport {
       throw new Error(`私钥口令不正确，无法解锁 ${encrypted.path}`);
     }
     if (this.options.rememberPassword()) {
-      await this.options.credentials.store(input, 'passphrase', entered);
+      await this.options.credentials.store(credentialKey, 'passphrase', entered);
     }
     return { path: encrypted.path, content: encrypted.content, passphrase: entered };
   }

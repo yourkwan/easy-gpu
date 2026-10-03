@@ -42,10 +42,9 @@ export class VsCodeAuthInteraction implements AuthInteraction {
   constructor(private readonly rememberPassword: () => boolean) {}
 
   async promptPassword(host: string): Promise<string | undefined> {
-    const suffix = this.rememberPassword() ? '（连接成功后会保存到系统钥匙串）' : '';
     const password = await vscode.window.showInputBox({
       title: `Easy GPU：输入 ${host} 的 SSH 密码`,
-      prompt: `密钥 / ssh-agent 未通过，请输入密码${suffix}`,
+      prompt: this.savedHint('密码'),
       password: true,
       ignoreFocusOut: true,
       validateInput: (value) => (value ? undefined : '密码不能为空')
@@ -54,15 +53,21 @@ export class VsCodeAuthInteraction implements AuthInteraction {
   }
 
   async promptPassphrase(host: string, keyPath: string): Promise<string | undefined> {
-    const suffix = this.rememberPassword() ? '（会保存到系统钥匙串）' : '';
+    const keyName = keyPath.split(/[\\/]/).pop() ?? keyPath;
     const passphrase = await vscode.window.showInputBox({
       title: `Easy GPU：输入私钥口令（${host}）`,
-      prompt: `私钥已加密：${keyPath}，请输入它的口令${suffix}`,
+      prompt: `私钥 ${keyName} 已加密，${this.savedHint('口令')}`,
       password: true,
       ignoreFocusOut: true,
       validateInput: (value) => (value ? undefined : '口令不能为空')
     });
     return passphrase || undefined;
+  }
+
+  private savedHint(kind: string): string {
+    return this.rememberPassword()
+      ? `${kind}会保存到系统钥匙串，之后自动连接（可在「Easy GPU: 管理连接与密码」中删除）`
+      : `输入的${kind}只用于本次连接`;
   }
 
   async confirmNewHostKey(host: string, fingerprint: string): Promise<boolean> {

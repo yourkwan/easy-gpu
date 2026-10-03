@@ -3,10 +3,11 @@ import * as vscode from 'vscode';
 import { BuiltinSshTransport } from './builtinSsh';
 import { COLLECT_TIMEOUT_MS, collectSnapshot } from './collector';
 import { SshAuthError } from './errors';
+import { profileLabel, ProfileStore, sshHostArg, sshTarget, StoredProfile } from './profiles';
 import { runRemoteScript } from './ssh';
-import { ConnectionMode, Channel, MonitorState } from './types';
+import { Channel, MonitorState } from './types';
 
-/** 负责按配置的间隔轮询远程服务器（系统 ssh 或内置客户端），并广播最新状态。 */
+/** 按配置的间隔轮询当前连接（密码 / 私钥走内置客户端，免密走系统 ssh），并广播最新状态。 */
 export class MonitorService implements vscode.Disposable {
   private readonly onDidChangeEmitter = new vscode.EventEmitter<MonitorState>();
   readonly onDidChange = this.onDidChangeEmitter.event;
@@ -14,22 +15,29 @@ export class MonitorService implements vscode.Disposable {
   private state: MonitorState = { status: 'idle', host: '' };
   private timer?: NodeJS.Timeout;
   private inFlight = false;
-  /** 用户取消过密码输入的主机：自动刷新时不再反复弹框，手动刷新会重置 */
-  private declinedHost?: string;
+  /** 用户取消过密码输入的连接：自动刷新时不再反复弹框，手动刷新会重置 */
+  private declinedProfile?: string;
   /** 本次刷新实际使用的通道，用于诊断耗时 */
   private lastChannel?: Channel;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly builtin: BuiltinSshTransport
+    private readonly builtin: BuiltinSshTransport,
+    private readonly profiles: ProfileStore
   ) {}
 
   getState(): MonitorState {
     return this.state;
   }
 
+  get profile(): StoredProfile | undefined {
+    return this.profiles.current();
+  }
+
+  /** 当前连接的展示名（user@host），未配置时为空 */
   get host(): string {
-    return vscode.workspace.getConfiguration('easy-gpu').get<string>('host', '').trim();
+    const profile = this.profile;
+    return profile ? profileLabel(profile) : '';
   }
 
   get refreshInterval(): number {
@@ -37,40 +45,16 @@ export class MonitorService implements vscode.Disposable {
     return Math.min(600, Math.max(2, Number.isFinite(value) ? value : 5));
   }
 
-  get connectionMode(): ConnectionMode {
-    const value = vscode.workspace.getConfiguration('easy-gpu').get<string>('connectionMode', 'auto');
-    return value === 'systemSsh' || value === 'builtin' ? value : 'auto';
-  }
-
-  private get extraArgs(): string[] {
-    const value = vscode.workspace.getConfiguration('easy-gpu').get<string[]>('sshExtraArgs', []);
-    return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : [];
-  }
-
-  private get privateKeyPath(): string {
-    return vscode.workspace.getConfiguration('easy-gpu').get<string>('privateKeyPath', '').trim();
-  }
-
-  /** 系统 ssh 的参数：额外参数 + 显式指定的私钥文件（-i） */
-  private systemSshArgs(): string[] {
-    const args = [...this.extraArgs];
-    const keyPath = this.privateKeyPath;
-    if (keyPath) {
-      args.push('-i', keyPath);
-    }
-    return args;
-  }
-
   /** 启动（或重启）轮询。 */
   start(): void {
     this.stop();
-    const host = this.host;
-    if (!host) {
+    const profile = this.profile;
+    if (!profile) {
       this.update({ status: 'idle', host: '', error: undefined });
       return;
     }
-    this.declinedHost = undefined;
-    this.update({ status: this.state.snapshot ? 'ok' : 'connecting', host, error: undefined });
+    this.declinedProfile = undefined;
+    this.update({ status: this.state.snapshot ? 'ok' : 'connecting', host: profileLabel(profile), error: undefined });
     void this.refresh();
     this.timer = setInterval(() => void this.refresh(), this.refreshInterval * 1000);
   }
@@ -83,8 +67,8 @@ export class MonitorService implements vscode.Disposable {
   }
 
   async refresh(options: { manual?: boolean } = {}): Promise<void> {
-    const host = this.host;
-    if (!host) {
+    const profile = this.profile;
+    if (!profile) {
       this.update({ status: 'idle', host: '', error: undefined });
       return;
     }
@@ -94,32 +78,31 @@ export class MonitorService implements vscode.Disposable {
     this.inFlight = true;
     this.lastChannel = undefined;
     const startedAt = Date.now();
-    this.update({ status: 'connecting', host, error: undefined, mode: this.connectionMode });
+    const host = profileLabel(profile);
+    this.update({ status: 'connecting', host, error: undefined });
 
     try {
       const script = this.readScript();
-      const snapshot = await collectSnapshot(script, (code) => this.runCollect(host, code, options));
+      const snapshot = await collectSnapshot(script, (code) => this.runCollect(profile, code, options));
       this.update({
         status: 'ok',
         host,
         snapshot,
         updatedAt: Date.now(),
         error: undefined,
-        mode: this.connectionMode,
         channel: this.lastChannel,
         durationMs: Date.now() - startedAt
       });
-      this.declinedHost = undefined;
+      this.declinedProfile = undefined;
     } catch (error) {
       if (error instanceof SshAuthError && error.cancelled) {
-        this.declinedHost = host;
+        this.declinedProfile = profile.id;
       }
       const message = error instanceof Error ? error.message : String(error);
       this.update({
         status: 'error',
         host,
         error: message,
-        mode: this.connectionMode,
         channel: this.lastChannel,
         durationMs: Date.now() - startedAt
       });
@@ -128,37 +111,42 @@ export class MonitorService implements vscode.Disposable {
     }
   }
 
-  /** 依据连接方式选择传输通道，并在需要时回退到内置客户端的密码登录。 */
-  private async runCollect(host: string, script: string, options: { manual?: boolean }): Promise<string> {
-    const mode = this.connectionMode;
+  /** 按连接配置的登录方式选择传输通道。 */
+  private async runCollect(
+    profile: StoredProfile,
+    script: string,
+    options: { manual?: boolean }
+  ): Promise<string> {
     if (options.manual) {
       // 手动重试时允许重新弹出密码框
-      this.declinedHost = undefined;
+      this.declinedProfile = undefined;
     }
-    if (this.declinedHost === host) {
+    if (this.declinedProfile === profile.id) {
       throw new SshAuthError('需要密码登录：点击「立即重试」可再次弹出密码输入框', false);
     }
 
-    const viaBuiltin = async () => {
+    // 密码 / 指定私钥：走内置客户端，认证信息与错误提示都更明确
+    if (profile.auth === 'password' || profile.auth === 'key') {
       this.lastChannel = 'builtin';
-      return (await this.builtin.exec(host, script, COLLECT_TIMEOUT_MS)).stdout;
-    };
+      const result = await this.builtin.exec(sshTarget(profile), script, COLLECT_TIMEOUT_MS, {
+        credentialKey: profile.id,
+        keyPath: profile.keyPath
+      });
+      return result.stdout;
+    }
 
-    if (mode === 'builtin') {
-      return viaBuiltin();
-    }
-    // auto：已保存密码说明用户选择了密码登录，直接用内置客户端
-    if (mode === 'auto' && (await this.builtin.hasStoredPassword(host))) {
-      return viaBuiltin();
-    }
+    // ssh-agent / 免密：复用系统 ssh 的 ~/.ssh/config、ssh-agent、ProxyJump 等
     try {
-      const result = await runRemoteScript(host, script, this.systemSshArgs(), COLLECT_TIMEOUT_MS);
+      const target = sshHostArg(profile);
+      const portArgs = profile.port !== 22 ? ['-p', String(profile.port)] : [];
+      const result = await runRemoteScript(target, script, portArgs, COLLECT_TIMEOUT_MS);
       this.lastChannel = 'systemSsh';
       return result.stdout;
     } catch (error) {
-      if (mode === 'auto' && error instanceof SshAuthError) {
-        // 密钥 / agent 走不通：回退到内置客户端，必要时弹出密码框
-        return viaBuiltin();
+      if (error instanceof SshAuthError) {
+        throw new SshAuthError(
+          '免密登录（密钥 / ssh-agent）未通过。执行「Easy GPU: 管理连接与密码」，把这条连接的登录方式改成密码或指定私钥即可。'
+        );
       }
       throw error;
     }

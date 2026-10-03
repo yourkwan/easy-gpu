@@ -2,7 +2,7 @@
   "name": "easy-gpu",
   "displayName": "Easy GPU",
   "description": "监控远程 SSH 服务器的 GPU / CPU / 内存状态（gpustat 风格面板），支持各用户显存占用统计。",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "yourkwan",
   "license": "MIT",
   "repository": {
@@ -39,39 +39,24 @@
         "category": "Easy GPU"
       },
       {
-        "command": "easy-gpu.selectHost",
-        "title": "选择 SSH 服务器",
+        "command": "easy-gpu.connect",
+        "title": "新建连接（输入服务器地址与用户名）",
+        "category": "Easy GPU"
+      },
+      {
+        "command": "easy-gpu.manageConnections",
+        "title": "管理连接与密码",
         "category": "Easy GPU"
       },
       {
         "command": "easy-gpu.refreshNow",
         "title": "立即刷新",
         "category": "Easy GPU"
-      },
-      {
-        "command": "easy-gpu.setPassword",
-        "title": "设置 SSH 密码",
-        "category": "Easy GPU"
-      },
-      {
-        "command": "easy-gpu.forgetPassword",
-        "title": "清除已保存的密码 / 私钥口令",
-        "category": "Easy GPU"
-      },
-      {
-        "command": "easy-gpu.selectPrivateKey",
-        "title": "选择私钥文件（登录方式）",
-        "category": "Easy GPU"
       }
     ],
     "configuration": {
       "title": "Easy GPU",
       "properties": {
-        "easy-gpu.host": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "远程服务器的 SSH 主机：可以是 `~/.ssh/config` 中的别名，或 `user@host`。扩展直接复用系统 ssh 与密钥，不会保存任何密码。"
-        },
         "easy-gpu.refreshInterval": {
           "type": "number",
           "default": 5,
@@ -79,43 +64,10 @@
           "maximum": 600,
           "markdownDescription": "自动刷新间隔（秒）。"
         },
-        "easy-gpu.sshExtraArgs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "markdownDescription": "传给系统 `ssh` 的额外参数，例如 `[\"-p\", \"2222\"]`。"
-        },
         "easy-gpu.showStatusBar": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "在状态栏显示 GPU / CPU / 内存概览。"
-        },
-        "easy-gpu.connectionMode": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "systemSsh",
-            "builtin"
-          ],
-          "default": "auto",
-          "markdownEnumDescriptions": [
-            "优先使用系统 ssh（复用 ~/.ssh/config、密钥、agent）；认证失败时自动回退到内置客户端并提示输入密码。",
-            "只使用系统 ssh，仅支持免密（密钥 / ssh-agent）登录。",
-            "只使用内置 SSH 客户端：支持密码、私钥与 ssh-agent，不依赖本机 OpenSSH。"
-          ],
-          "markdownDescription": "连接远程服务器的方式。"
-        },
-        "easy-gpu.rememberPassword": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "密码 / 私钥口令验证成功后，保存到系统钥匙串（VS Code SecretStorage），下次自动连接；关闭后只在输入时使用一次。"
-        },
-        "easy-gpu.privateKeyPath": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "指定登录用的私钥文件（可选），支持 `~`。留空则使用 `~/.ssh/config` 的 `IdentityFile` 与 `~/.ssh/id_*` 默认密钥。加密私钥会提示输入口令；PuTTY 的 `.ppk` 格式需先转成 OpenSSH 格式。"
         }
       }
     }

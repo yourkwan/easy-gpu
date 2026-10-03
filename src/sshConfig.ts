@@ -102,7 +102,7 @@ function firstOption(blocks: SshConfigBlock[], key: string): string | undefined 
   return undefined;
 }
 
-function expandHome(value: string): string {
+export function expandHome(value: string): string {
   if (value === '~') {
     return os.homedir();
   }

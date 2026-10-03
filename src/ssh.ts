@@ -74,7 +74,7 @@ export function runRemoteScript(
       finish(() => {
         const message =
           (err as NodeJS.ErrnoException).code === 'ENOENT'
-            ? '未找到系统 ssh 命令，请先安装 OpenSSH 客户端，或把 easy-gpu.connectionMode 设为 builtin'
+            ? '未找到系统 ssh 命令。免密登录需要 OpenSSH 客户端；也可以在「Easy GPU: 管理连接与密码」里把该连接的登录方式改成「密码」或「私钥文件」（走内置客户端，无需系统 ssh）'
             : `无法启动 ssh：${err.message}`;
         reject(new Error(message));
       });

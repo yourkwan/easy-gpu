@@ -46,7 +46,7 @@ export class DashboardPanel {
             void this.service.refresh({ manual: true });
             break;
           case 'selectHost':
-            void vscode.commands.executeCommand('easy-gpu.selectHost');
+            void vscode.commands.executeCommand('easy-gpu.manageConnections');
             break;
           case 'openSettings':
             void vscode.commands.executeCommand('workbench.action.openSettings', 'easy-gpu');
@@ -104,7 +104,7 @@ export class DashboardPanel {
     <span class="status-pill" id="status-pill"><span class="dot"></span><span id="status-text">初始化…</span></span>
     <span class="countdown" id="countdown"></span>
     <button class="btn primary" id="btn-refresh">刷新</button>
-    <button class="btn" id="btn-host">切换服务器</button>
+    <button class="btn" id="btn-host" title="连接 / 切换服务器，管理密码与私钥">切换服务器</button>
     <button class="btn" id="btn-settings">设置</button>
   </div>
 </header>

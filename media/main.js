@@ -239,7 +239,7 @@
   function renderHostLine() {
     var line = $('host-line');
     if (!state.host) {
-      line.textContent = '未配置服务器 · 点击右上角"切换服务器"开始';
+      line.textContent = '未添加服务器 · 点击右上角「切换服务器」开始';
       return;
     }
     var text = state.host;
@@ -276,7 +276,7 @@
     };
     var hostBtn = function () {
       return bannerButton(
-        '选择服务器',
+        '添加服务器',
         function () {
           vscode.postMessage({ type: 'selectHost' });
         },
@@ -285,7 +285,7 @@
     };
 
     if (!state.host) {
-      show('info', '尚未配置要监控的服务器。扩展会复用你本机的 ~/.ssh/config 与密钥。', [hostBtn()]);
+      show('info', '还没有添加服务器。点「添加服务器」输入地址与用户名，再选择密码或私钥即可。', [hostBtn()]);
       return;
     }
     if (state.status === 'error') {

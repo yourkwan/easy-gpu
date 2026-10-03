@@ -183,19 +183,18 @@ function createTransport(options = {}) {
         return options.trustNewHostKey !== false;
       }
     },
-    rememberPassword: () => options.remember !== false,
-    privateKeyPath: options.privateKeyPath ? () => options.privateKeyPath : undefined
+    rememberPassword: () => options.remember !== false
   });
-  return { transport, state };
+  return { transport, state, auth: options.keyPath ? { keyPath: options.keyPath } : {} };
 }
 
 const target = (port) => `${USER}@127.0.0.1:${port}`;
-const collectVia = (transport, port) =>
-  collectSnapshot(SCRIPT, async (code) => (await transport.exec(target(port), code, TIMEOUT)).stdout);
+const collectVia = (transport, port, auth = {}) =>
+  collectSnapshot(SCRIPT, async (code) => (await transport.exec(target(port), code, TIMEOUT, auth)).stdout);
 
-async function execExpectError(transport, port, timeout = TIMEOUT) {
+async function execExpectError(transport, port, timeout = TIMEOUT, auth = {}) {
   try {
-    await transport.exec(target(port), SCRIPT, timeout);
+    await transport.exec(target(port), SCRIPT, timeout, auth);
     return undefined;
   } catch (error) {
     return error;
@@ -321,8 +320,8 @@ console.log('9) 私钥文件登录（未加密私钥，密码登录被禁用）'
   const clientKey = makeClientKey();
   const keyFile = writeTempKey(clientKey.private, 'id_ed25519');
   const handle = await startServer({ hostKey: makeHostKey(), allowPassword: false, allowedKeyBlob: clientKey.publicBlob });
-  const { transport, state } = createTransport({ privateKeyPath: keyFile });
-  const snapshot = await collectVia(transport, handle.port);
+  const { transport, state, auth } = createTransport({ keyPath: keyFile });
+  const snapshot = await collectVia(transport, handle.port, auth);
   check('用私钥文件采集成功', snapshot.memory.total > 0);
   check('服务器确认收到该公钥认证', handle.counters.publicKeyAuth >= 1, `publicKeyAuth=${handle.counters.publicKeyAuth}`);
   check('未弹密码框', state.prompts === 0);
@@ -336,15 +335,15 @@ console.log('10) 加密私钥：弹框输入口令并保存，第二次连接不
   const keyFile = writeTempKey(clientKey.private, 'id_encrypted');
   const handle = await startServer({ hostKey: makeHostKey(), allowPassword: false, allowedKeyBlob: clientKey.publicBlob });
 
-  const first = createTransport({ privateKeyPath: keyFile, enteredPassphrase: 'key-passphrase' });
-  const snapshot = await collectVia(first.transport, handle.port);
+  const first = createTransport({ keyPath: keyFile, enteredPassphrase: 'key-passphrase' });
+  const snapshot = await collectVia(first.transport, handle.port, first.auth);
   check('输入口令后采集成功', snapshot.memory.total > 0);
   check('弹了一次口令框', first.state.passphrasePrompts === 1, `prompts=${first.state.passphrasePrompts}`);
   check('口令已保存', first.state.passphrase === 'key-passphrase');
   first.transport.dispose();
 
-  const second = createTransport({ privateKeyPath: keyFile, state: first.state });
-  const secondSnapshot = await collectVia(second.transport, handle.port);
+  const second = createTransport({ keyPath: keyFile, state: first.state });
+  const secondSnapshot = await collectVia(second.transport, handle.port, second.auth);
   check('第二次连接成功', secondSnapshot.memory.total > 0);
   check('不再弹口令框', second.state.passphrasePrompts === 1, `prompts=${second.state.passphrasePrompts}`);
   second.transport.dispose();
@@ -356,12 +355,12 @@ console.log('11) 保存的私钥口令失效 → 自动清除并重新询问');
   const clientKey = makeClientKey('right-passphrase');
   const keyFile = writeTempKey(clientKey.private, 'id_encrypted2');
   const handle = await startServer({ hostKey: makeHostKey(), allowPassword: false, allowedKeyBlob: clientKey.publicBlob });
-  const { transport, state } = createTransport({
-    privateKeyPath: keyFile,
+  const { transport, state, auth } = createTransport({
+    keyPath: keyFile,
     savedPassphrase: 'stale-passphrase',
     enteredPassphrase: 'right-passphrase'
   });
-  const snapshot = await collectVia(transport, handle.port);
+  const snapshot = await collectVia(transport, handle.port, auth);
   check('重新输入口令后连接成功', snapshot.memory.total > 0);
   check('弹了一次口令框', state.passphrasePrompts === 1, `prompts=${state.passphrasePrompts}`);
   check('口令已更新为新值', state.passphrase === 'right-passphrase');
@@ -374,8 +373,8 @@ console.log('12) 取消输入私钥口令 → 不使用该私钥（回退密码�
   const clientKey = makeClientKey('key-passphrase');
   const keyFile = writeTempKey(clientKey.private, 'id_encrypted3');
   const handle = await startServer({ hostKey: makeHostKey(), allowPassword: false, allowedKeyBlob: clientKey.publicBlob });
-  const { transport, state } = createTransport({ privateKeyPath: keyFile, enteredPassphrase: undefined });
-  const error = await execExpectError(transport, handle.port);
+  const { transport, state, auth } = createTransport({ keyPath: keyFile, enteredPassphrase: undefined });
+  const error = await execExpectError(transport, handle.port, TIMEOUT, auth);
   check('未成功连接', error !== undefined);
   check('抛出认证类错误（已回退到密码流程）', error instanceof SshAuthError, String(error));
   check('弹过一次口令框', state.passphrasePrompts === 1);
@@ -392,8 +391,8 @@ console.log('13) PuTTY .ppk 私钥 → 给出转换提示');
     'key.ppk'
   );
   const handle = await startServer({ hostKey: makeHostKey(), allowPassword: false });
-  const { transport } = createTransport({ privateKeyPath: ppkFile });
-  const error = await execExpectError(transport, handle.port);
+  const { transport, auth } = createTransport({ keyPath: ppkFile });
+  const error = await execExpectError(transport, handle.port, TIMEOUT, auth);
   check('提示 .ppk 需要转换', /PuTTY|ppk/i.test(error?.message ?? '') && /PuTTYgen/.test(error?.message ?? ''), String(error));
   transport.dispose();
   await closeServer(handle);
@@ -401,8 +400,8 @@ console.log('13) PuTTY .ppk 私钥 → 给出转换提示');
 
 console.log('14) 私钥文件路径不存在 → 明确报错');
 {
-  const { transport } = createTransport({ privateKeyPath: path.join(os.tmpdir(), 'easy-gpu-missing-key-xyz') });
-  const error = await execExpectError(transport, 22, 5000);
+  const { transport, auth } = createTransport({ keyPath: path.join(os.tmpdir(), 'easy-gpu-missing-key-xyz') });
+  const error = await execExpectError(transport, 22, 5000, auth);
   check('提示找不到私钥文件', /找不到私钥文件/.test(error?.message ?? ''), String(error));
   transport.dispose();
 }
