@@ -1,17 +1,19 @@
 /**
  * 生成扩展图标 media/icon.png（128×128）
- * 设计：墨蓝渐变圆角方块 + 白色「监控读数」图形（波形曲线 + 度量条），与面板视觉一致。
- * 依赖：仅 Node 内置 zlib（4 倍超采样后降采样，得到平滑边缘）。
+ * 设计：浅蓝渐变圆角方块 + 深蓝「GPU」几何字标（线条构成，无外部字体依赖）。
+ * 依赖：仅 Node 内置 zlib（4 倍超采样后降采样，边缘平滑）。
  */
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const SIZE = 128;
-const SS = 4; // 超采样倍数
+const SIZE = Number(process.env.ICON_SIZE || 128);
+const SS = 4;
 const N = SIZE * SS;
 
-// ---------- 距离函数（超采样网格下计算，单位：0..128 的设计坐标） ----------
+const DEG = Math.PI / 180;
+
+// ---------- 距离场 ----------
 function roundedRectSDF(px, py, x0, y0, x1, y1, r) {
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
@@ -31,79 +33,86 @@ function segmentDistance(px, py, ax, ay, bx, by) {
   const wy = py - ay;
   const len2 = vx * vx + vy * vy;
   const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, (wx * vx + wy * vy) / len2));
-  const dx = px - (ax + t * vx);
-  const dy = py - (ay + t * vy);
-  return Math.sqrt(dx * dx + dy * dy);
+  return Math.hypot(px - (ax + t * vx), py - (ay + t * vy));
 }
 
-function circleSDF(px, py, cx, cy, r) {
-  return Math.hypot(px - cx, py - cy) - r;
+/** 圆弧（a0 → a1 逆时针扫过，角度单位度，屏幕坐标系 y 向下）到点的最短距离 */
+function arcDistance(px, py, cx, cy, r, a0, a1) {
+  const angle = Math.atan2(py - cy, px - cx) / DEG;
+  const sweep = ((a1 - a0) % 360 + 360) % 360;
+  const delta = ((angle - a0) % 360 + 360) % 360;
+  if (delta <= sweep) {
+    return Math.abs(Math.hypot(px - cx, py - cy) - r);
+  }
+  const rad0 = a0 * DEG;
+  const rad1 = a1 * DEG;
+  return Math.min(
+    Math.hypot(px - (cx + r * Math.cos(rad0)), py - (cy + r * Math.sin(rad0))),
+    Math.hypot(px - (cx + r * Math.cos(rad1)), py - (cy + r * Math.sin(rad1)))
+  );
 }
 
-// ---------- 图形定义（设计坐标 0..128） ----------
-const GRAD_TOP = [46, 115, 156]; // #2E739C
-const GRAD_BOTTOM = [24, 68, 94]; // #18445E
+// ---------- 配色 ----------
+const BLUE_TOP = [150, 210, 238]; // #96D2EE 浅蓝
+const BLUE_BOTTOM = [96, 168, 210]; // #60A8D2
+const INK = [17, 68, 94]; // #11445E 深蓝字
 
-const WAVE = [
-  [26, 58],
-  [46, 42],
-  [62, 52],
-  [82, 30],
-  [102, 42]
+// ---------- 「GPU」几何字标（设计坐标 0..128） ----------
+const STROKE = 4.8; // 半宽 → 线宽 9.6
+const LETTERS = [
+  // G：右侧开口的圆 + 中部横杠（开口 50°，横杠把开口连成 G）
+  [
+    { type: 'arc', cx: 33, cy: 64, r: 17, a0: 32, a1: 328 },
+    { type: 'seg', a: [50, 64], b: [39, 64] }
+  ],
+  // P：竖干 + 右上半圆（圆心落在竖干上，弧从上方 270° 经右侧 0° 扫到下方 90°）
+  [
+    { type: 'seg', a: [54, 45], b: [54, 83] },
+    { type: 'arc', cx: 54, cy: 58.5, r: 12.5, a0: 270, a1: 450 }
+  ],
+  // U：左右竖段 + 底部半圆（弧从右侧 0° 经底部 90° 扫到左侧 180°）
+  [
+    { type: 'seg', a: [82, 45], b: [82, 64.5] },
+    { type: 'arc', cx: 98, cy: 64.5, r: 16, a0: 0, a1: 180 },
+    { type: 'seg', a: [114, 64.5], b: [114, 45] }
+  ]
 ];
-const WAVE_HALF = 3.6; // 线宽 7.2
-const DOT = [102, 42, 5.2];
 
-const TRACK = [26, 76, 102, 94, 9];
-const FILL = [26, 76, 86, 94, 9];
+function letterDistance(x, y) {
+  let best = Infinity;
+  for (const letter of LETTERS) {
+    for (const shape of letter) {
+      best =
+        shape.type === 'arc'
+          ? Math.min(best, arcDistance(x, y, shape.cx, shape.cy, shape.r, shape.a0, shape.a1))
+          : Math.min(best, segmentDistance(x, y, shape.a[0], shape.a[1], shape.b[0], shape.b[1]));
+    }
+  }
+  return best;
+}
 
 function designColor(x, y) {
-  // 背景：圆角方块（半径 27）
-  const bg = roundedRectSDF(x, y, 0, 0, 128, 128, 27);
-  if (bg > 0) {
+  if (roundedRectSDF(x, y, 0, 0, 128, 128, 27) > 0) {
     return [0, 0, 0, 0];
   }
   const t = Math.max(0, Math.min(1, y / 128));
-  let color = [
-    GRAD_TOP[0] + (GRAD_BOTTOM[0] - GRAD_TOP[0]) * t,
-    GRAD_TOP[1] + (GRAD_BOTTOM[1] - GRAD_TOP[1]) * t,
-    GRAD_TOP[2] + (GRAD_BOTTOM[2] - GRAD_TOP[2]) * t,
-    255
+  const base = [
+    BLUE_TOP[0] + (BLUE_BOTTOM[0] - BLUE_TOP[0]) * t,
+    BLUE_TOP[1] + (BLUE_BOTTOM[1] - BLUE_TOP[1]) * t,
+    BLUE_TOP[2] + (BLUE_BOTTOM[2] - BLUE_TOP[2]) * t
   ];
-
-  // 叠加白色图形（半透明轨道先算，实心部分覆盖）
-  const trackSDF = roundedRectSDF(x, y, TRACK[0], TRACK[1], TRACK[2], TRACK[3], TRACK[4]);
-  if (trackSDF <= 0) {
-    color = [255, 255, 255, 255 * 0.3 + color[3] * 0];
-    color[3] = 255;
-    // 轨道：白 30% 与底色混合
-    color = [color[0] * 0.3 + (GRAD_TOP[0] + (GRAD_BOTTOM[0] - GRAD_TOP[0]) * t) * 0.7,
-             color[1] * 0.3 + (GRAD_TOP[1] + (GRAD_BOTTOM[1] - GRAD_TOP[1]) * t) * 0.7,
-             color[2] * 0.3 + (GRAD_TOP[2] + (GRAD_BOTTOM[2] - GRAD_TOP[2]) * t) * 0.7,
-             255];
+  if (letterDistance(x, y) <= STROKE) {
+    return [INK[0], INK[1], INK[2], 255];
   }
-  const fillSDF = roundedRectSDF(x, y, FILL[0], FILL[1], FILL[2], FILL[3], FILL[4]);
-  if (fillSDF <= 0) {
-    color = [255, 255, 255, 255];
-  }
-
-  let waveDist = Infinity;
-  for (let i = 0; i < WAVE.length - 1; i++) {
-    waveDist = Math.min(waveDist, segmentDistance(x, y, WAVE[i][0], WAVE[i][1], WAVE[i + 1][0], WAVE[i + 1][1]));
-  }
-  if (waveDist <= WAVE_HALF || circleSDF(x, y, DOT[0], DOT[1], DOT[2]) <= 0) {
-    color = [255, 255, 255, 255];
-  }
-  return color;
+  return [base[0], base[1], base[2], 255];
 }
 
-// ---------- 超采样渲染 + 降采样 ----------
+// ---------- 渲染 ----------
+const SCALE = 128 / SIZE; // 设计坐标固定 0..128，按输出尺寸等比缩放
 const big = new Float64Array(N * N * 4);
 for (let py = 0; py < N; py++) {
   for (let px = 0; px < N; px++) {
-    const x = (px + 0.5) / SS;
-    const y = (py + 0.5) / SS;
-    const [r, g, b, a] = designColor(x, y);
+    const [r, g, b, a] = designColor((px + 0.5) / SS * SCALE, (py + 0.5) / SS * SCALE);
     const idx = (py * N + px) * 4;
     const alpha = a / 255;
     big[idx] = r * alpha;
@@ -143,7 +152,7 @@ for (let y = 0; y < SIZE; y++) {
   }
 }
 
-// ---------- 手写 PNG（RGBA8 + filter 0） ----------
+// ---------- 手写 PNG ----------
 function crc32(buf) {
   let table = crc32.table;
   if (!table) {
@@ -175,11 +184,8 @@ function chunk(type, data) {
 const ihdr = Buffer.alloc(13);
 ihdr.writeUInt32BE(SIZE, 0);
 ihdr.writeUInt32BE(SIZE, 4);
-ihdr[8] = 8; // bit depth
-ihdr[9] = 6; // RGBA
-ihdr[10] = 0;
-ihdr[11] = 0;
-ihdr[12] = 0;
+ihdr[8] = 8;
+ihdr[9] = 6;
 
 const raw = Buffer.alloc(SIZE * (SIZE * 4 + 1));
 for (let y = 0; y < SIZE; y++) {
@@ -194,6 +200,6 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0))
 ]);
 
-const outPath = path.join(__dirname, '..', 'media', 'icon.png');
+const outPath = process.env.ICON_OUT || path.join(__dirname, '..', 'media', 'icon.png');
 fs.writeFileSync(outPath, png);
 console.log(`icon 已生成：${outPath}（${SIZE}×${SIZE}，${(png.length / 1024).toFixed(1)} KB）`);
