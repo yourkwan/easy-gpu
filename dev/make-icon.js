@@ -1,7 +1,17 @@
 /**
- * 生成扩展图标 media/icon.png（128×128）
- * 设计：浅蓝渐变圆角方块 + 深蓝「GPU」几何字标（线条构成，无外部字体依赖）。
- * 依赖：仅 Node 内置 zlib（4 倍超采样后降采样，边缘平滑）。
+ * 生成扩展图标 media/icon.png（128×128），两种模式：
+ *
+ * 1) 默认（内置矢量绘制）：浅蓝渐变圆角方块 + 深蓝「GPU」几何字标，零外部依赖
+ *      node dev/make-icon.js
+ *
+ * 2) 用图片生成模型产出的图（ICON_FROM_RAW）：先用 ffmpeg 抹掉水印、裁掉外框、等比缩到 128 并导出 RGBA，
+ *    再由本脚本套圆角遮罩后编码 PNG
+ *      ffmpeg -i dev/icon-ai.jpg -vf "delogo=x=1538:y=1728:w=322:h=124,crop=1600:1600:160:160,\
+ *        scale=128:128:flags=lanczos,format=rgba" -f rawvideo -pix_fmt rgba /tmp/icon.raw
+ *      ICON_FROM_RAW=/tmp/icon.raw node dev/make-icon.js
+ *    （gen1 源图：dev/icon-ai.jpg；浅蓝底 + 深蓝 GPU 字标）
+ *
+ * 可选环境变量：ICON_SIZE 输出尺寸、ICON_OUT 输出路径。
  */
 const fs = require('fs');
 const path = require('path');
@@ -122,7 +132,7 @@ for (let py = 0; py < N; py++) {
   }
 }
 
-const rgba = Buffer.alloc(SIZE * SIZE * 4);
+const vectorRgba = Buffer.alloc(SIZE * SIZE * 4);
 for (let y = 0; y < SIZE; y++) {
   for (let x = 0; x < SIZE; x++) {
     let r = 0;
@@ -142,12 +152,12 @@ for (let y = 0; y < SIZE; y++) {
     const alpha = a / count;
     const out = (y * SIZE + x) * 4;
     if (alpha <= 0.0001) {
-      rgba[out] = rgba[out + 1] = rgba[out + 2] = rgba[out + 3] = 0;
+      vectorRgba[out] = vectorRgba[out + 1] = vectorRgba[out + 2] = vectorRgba[out + 3] = 0;
     } else {
-      rgba[out] = Math.round(Math.min(255, r / a));
-      rgba[out + 1] = Math.round(Math.min(255, g / a));
-      rgba[out + 2] = Math.round(Math.min(255, b / a));
-      rgba[out + 3] = Math.round(alpha * 255);
+      vectorRgba[out] = Math.round(Math.min(255, r / a));
+      vectorRgba[out + 1] = Math.round(Math.min(255, g / a));
+      vectorRgba[out + 2] = Math.round(Math.min(255, b / a));
+      vectorRgba[out + 3] = Math.round(alpha * 255);
     }
   }
 }
@@ -181,25 +191,57 @@ function chunk(type, data) {
   return Buffer.concat([length, body, crc]);
 }
 
-const ihdr = Buffer.alloc(13);
-ihdr.writeUInt32BE(SIZE, 0);
-ihdr.writeUInt32BE(SIZE, 4);
-ihdr[8] = 8;
-ihdr[9] = 6;
+/** 把 RGBA 像素编码为 PNG（8 位 RGBA，filter 0） */
+function encodePng(pixels, size) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;
+  header[9] = 6;
 
-const raw = Buffer.alloc(SIZE * (SIZE * 4 + 1));
-for (let y = 0; y < SIZE; y++) {
-  raw[y * (SIZE * 4 + 1)] = 0;
-  rgba.copy(raw, y * (SIZE * 4 + 1) + 1, y * SIZE * 4, (y + 1) * SIZE * 4);
+  const scanlines = Buffer.alloc(size * (size * 4 + 1));
+  for (let y = 0; y < size; y++) {
+    scanlines[y * (size * 4 + 1)] = 0;
+    pixels.copy(scanlines, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', zlib.deflateSync(scanlines, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0))
+  ]);
 }
 
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  chunk('IHDR', ihdr),
-  chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-  chunk('IEND', Buffer.alloc(0))
-]);
+/** 给不透明像素套上圆角遮罩（1px 平滑过渡） */
+function applyRoundedMask(pixels, size, radius) {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const distance = roundedRectSDF(x + 0.5, y + 0.5, 0, 0, size, size, radius);
+      const coverage = Math.max(0, Math.min(1, 0.5 - distance));
+      const index = (y * size + x) * 4 + 3;
+      pixels[index] = Math.round(pixels[index] * coverage);
+    }
+  }
+  return pixels;
+}
 
+// ---------- 输出 ----------
 const outPath = process.env.ICON_OUT || path.join(__dirname, '..', 'media', 'icon.png');
+let rgba;
+
+if (process.env.ICON_FROM_RAW) {
+  // 用图片生成模型产出的图：ffmpeg 已裁掉外框、缩放为 SIZE×SIZE 的 RGBA 原始像素（-pix_fmt rgba）
+  rgba = Buffer.from(fs.readFileSync(process.env.ICON_FROM_RAW));
+  if (rgba.length !== SIZE * SIZE * 4) {
+    throw new Error(`原始像素大小不符：期望 ${SIZE * SIZE * 4} 字节，实际 ${rgba.length}`);
+  }
+  applyRoundedMask(rgba, SIZE, 26);
+} else {
+  // 默认：内置矢量绘制（浅蓝圆角方块 + GPU 字标）
+  rgba = vectorRgba;
+}
+
+const png = encodePng(rgba, SIZE);
 fs.writeFileSync(outPath, png);
 console.log(`icon 已生成：${outPath}（${SIZE}×${SIZE}，${(png.length / 1024).toFixed(1)} KB）`);
