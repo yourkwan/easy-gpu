@@ -4,6 +4,7 @@
   "description": "监控远程 SSH 服务器的 GPU / CPU / 内存状态（gpustat 风格面板），支持各用户显存占用统计。",
   "version": "1.1.0",
   "publisher": "yourkwan",
+  "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
