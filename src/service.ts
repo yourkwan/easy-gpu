@@ -56,14 +56,29 @@ export class MonitorService implements vscode.Disposable {
     this.declinedProfile = undefined;
     this.update({ status: this.state.snapshot ? 'ok' : 'connecting', host: profileLabel(profile), error: undefined });
     void this.refresh();
-    this.timer = setInterval(() => void this.refresh(), this.refreshInterval * 1000);
   }
 
   stop(): void {
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = undefined;
     }
+  }
+
+  /**
+   * 本次刷新结束后再等一个间隔。
+   * 用 setTimeout 链而不是 setInterval：间隔锚定在「数据到达」这一刻，面板倒计时才与实际节奏一致；
+   * 刷新本身耗时超过间隔时也不会叠加重试（同一时间只跑一个刷新）。
+   */
+  private scheduleNext(): void {
+    this.stop();
+    if (!this.profile) {
+      return;
+    }
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.refresh();
+    }, this.refreshInterval * 1000);
   }
 
   async refresh(options: { manual?: boolean } = {}): Promise<void> {
@@ -76,6 +91,7 @@ export class MonitorService implements vscode.Disposable {
       return;
     }
     this.inFlight = true;
+    this.stop();
     this.lastChannel = undefined;
     const startedAt = Date.now();
     const host = profileLabel(profile);
@@ -108,6 +124,7 @@ export class MonitorService implements vscode.Disposable {
       });
     } finally {
       this.inFlight = false;
+      this.scheduleNext();
     }
   }
 

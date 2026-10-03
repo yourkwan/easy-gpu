@@ -11,7 +11,6 @@
   var history = [];
   var lastSampleKey = '';
   var skeletonBuilt = false;
-  var refreshStartedAt = 0;
 
   var gpuCards = {}; // index -> card refs
   var refs = {};
@@ -105,8 +104,6 @@
     var sysSection = el('section', 'section');
     var sysHead = el('div', 'section-head');
     sysHead.appendChild(el('h2', null, '系统'));
-    refs.sysSummary = el('span', 'section-sub', '');
-    sysHead.appendChild(refs.sysSummary);
     sysSection.appendChild(sysHead);
 
     var sysRows = el('div', 'sys-rows');
@@ -447,9 +444,6 @@
       ' GB · 可用 ' +
       fmtGB(memory.available) +
       ' GB';
-
-    var gpuCount = (snapshot.gpus || []).length;
-    refs.sysSummary.textContent = gpuCount ? 'GPU ' + gpuCount + ' 张 · nvidia-smi 采集' : 'nvidia-smi 采集';
   }
 
   function renderFooter() {
@@ -463,15 +457,8 @@
       left.textContent = '等待数据…';
     }
     var right = el('span');
-    if (state.snapshot) {
-      var parts = ['GPU 数据来自 nvidia-smi'];
-      if (state.channel) {
-        parts.push(state.channel === 'builtin' ? '内置客户端' : '系统 ssh');
-      }
-      if (state.durationMs) {
-        parts.push('上次刷新 ' + (state.durationMs / 1000).toFixed(1) + 's');
-      }
-      right.textContent = parts.join(' · ');
+    if (state.snapshot && state.durationMs) {
+      right.textContent = '上次刷新 ' + (state.durationMs / 1000).toFixed(1) + 's';
     }
     footer.appendChild(left);
     footer.appendChild(right);
@@ -558,21 +545,14 @@
       return;
     }
     if (state.status === 'connecting') {
-      // 刷新中也显示倒计时：按「本次刷新开始 + 间隔」推算下一次刷新
-      var started = refreshStartedAt || Date.now();
-      var left = Math.ceil((started + config.refreshInterval * 1000 - Date.now()) / 1000);
-      if (left > 0) {
-        node.textContent = '刷新中 · ' + left + 's';
-      } else {
-        var elapsed = Math.max(1, Math.round((Date.now() - started) / 1000));
-        node.textContent = '刷新中… 已用 ' + elapsed + 's';
-      }
+      node.textContent = '刷新中…';
       return;
     }
     if (!state.updatedAt) {
       node.textContent = '';
       return;
     }
+    // 刷新间隔锚定在数据到达时刻，与后台 setTimeout 链一致
     var next = state.updatedAt + config.refreshInterval * 1000;
     var remain = Math.max(0, Math.ceil((next - Date.now()) / 1000));
     node.textContent = remain > 0 ? remain + 's 后刷新' : '即将刷新';
@@ -595,13 +575,8 @@
   window.addEventListener('message', function (event) {
     var message = event.data || {};
     if (message.type === 'state') {
-      var previousStatus = state.status;
       state = message.state || state;
       config = message.config || config;
-      if (state.status === 'connecting' && previousStatus !== 'connecting') {
-        // 记录本次刷新的开始时间，用于在「刷新中」时推算下次刷新倒计时
-        refreshStartedAt = Date.now();
-      }
       if (state.snapshot) {
         pushHistory(state.snapshot);
       }
