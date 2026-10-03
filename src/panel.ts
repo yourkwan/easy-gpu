@@ -97,18 +97,15 @@ export class DashboardPanel {
 <div class="wrap">
 <header class="topbar">
   <div class="brand">
-    <span class="brand-logo">GPU</span>
-    <div class="brand-text">
-      <div class="title">Easy GPU</div>
-      <div class="subtitle" id="host-line">未配置服务器</div>
-    </div>
+    <span class="title">Easy GPU</span>
+    <span class="subtitle" id="host-line">未配置服务器</span>
   </div>
   <div class="actions">
     <span class="status-pill" id="status-pill"><span class="dot"></span><span id="status-text">初始化…</span></span>
     <span class="countdown" id="countdown"></span>
-    <button class="btn" id="btn-refresh">刷新</button>
+    <button class="btn primary" id="btn-refresh">刷新</button>
     <button class="btn" id="btn-host">切换服务器</button>
-    <button class="btn ghost" id="btn-settings">设置</button>
+    <button class="btn" id="btn-settings">设置</button>
   </div>
 </header>
 <div class="banner hidden" id="banner"></div>

@@ -3,7 +3,6 @@
 
   var vscode = acquireVsCodeApi();
 
-  var USER_COLORS = ['#4C9AFF', '#F4801A', '#2EA043', '#A371F7', '#E5484D', '#D29922', '#39C5CF', '#DB61A2'];
   var MAX_HISTORY = 90;
   var MAX_PROCESS_CHIPS = 12;
 
@@ -46,26 +45,37 @@
     return typeof value === 'number' && isFinite(value) ? Math.round(value) + '%' : '—';
   }
 
-  function tempClass(temp) {
-    if (typeof temp !== 'number') return 'cool';
+  // 语义色只在异常时使用：温度 ≥65 暖 / ≥80 热，利用率 ≥90 暖 / ≥98 热
+  function tempState(temp) {
+    if (typeof temp !== 'number') return '';
     if (temp >= 80) return 'hot';
     if (temp >= 65) return 'warm';
-    return 'cool';
+    return '';
   }
 
-  function barColor(value) {
-    if (typeof value !== 'number') return '#8b949e';
-    if (value >= 85) return '#E5484D';
-    if (value >= 55) return '#D29922';
-    return '#2EA043';
+  function utilState(util) {
+    if (typeof util !== 'number') return '';
+    if (util >= 98) return 'hot';
+    if (util >= 90) return 'warm';
+    return '';
   }
 
-  function userColor(name) {
-    var hash = 0;
-    for (var i = 0; i < name.length; i++) {
-      hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-    }
-    return USER_COLORS[hash % USER_COLORS.length];
+  function pad2(value) {
+    var text = String(value);
+    return text.length < 2 ? '0' + text : text;
+  }
+
+  function cssVar(name, fallback) {
+    var value = getComputedStyle(document.body).getPropertyValue(name);
+    value = (value || '').trim();
+    return value || fallback;
+  }
+
+  function withAlpha(color, alpha) {
+    var match = /^#?([0-9a-f]{6})$/i.exec(color.trim());
+    if (!match) return color;
+    var num = parseInt(match[1], 16);
+    return 'rgba(' + ((num >> 16) & 255) + ',' + ((num >> 8) & 255) + ',' + (num & 255) + ',' + alpha + ')';
   }
 
   function sortProcesses(processes) {
@@ -99,84 +109,92 @@
     sysHead.appendChild(refs.sysSummary);
     sysSection.appendChild(sysHead);
 
-    var sysGrid = el('div', 'sys-grid');
-    sysGrid.appendChild(buildCpuCard());
-    sysGrid.appendChild(buildMemoryCard());
-    sysSection.appendChild(sysGrid);
+    var sysRows = el('div', 'sys-rows');
+    sysRows.appendChild(buildCpuRow());
+    sysRows.appendChild(buildMemoryRow());
+    sysSection.appendChild(sysRows);
     content.appendChild(sysSection);
 
     skeletonBuilt = true;
   }
 
-  function buildCpuCard() {
-    var card = el('article', 'sys-card');
-    card.innerHTML =
-      '<div class="sys-head"><span class="sys-title">CPU</span><span class="sys-sub cpu-sub"></span></div>' +
-      '<div class="cpu-main">' +
-      '  <div class="cpu-value"><span class="cpu-num">—</span><span class="unit">%</span></div>' +
+  function buildCpuRow() {
+    var row = el('article', 'sys-row');
+    row.innerHTML =
+      '<div class="sys-label">CPU</div>' +
+      '<div class="sys-body">' +
+      '  <div class="sys-line">' +
+      '    <span class="sys-value"><span class="cpu-num">—</span><span class="unit">%</span></span>' +
+      '    <span class="sys-meta cpu-sub"></span>' +
+      '  </div>' +
       '  <canvas class="cpu-chart"></canvas>' +
       '</div>';
 
     refs.cpu = {
-      root: card,
-      sub: card.querySelector('.cpu-sub'),
-      num: card.querySelector('.cpu-num'),
-      chart: card.querySelector('.cpu-chart')
+      root: row,
+      sub: row.querySelector('.cpu-sub'),
+      num: row.querySelector('.cpu-num'),
+      chart: row.querySelector('.cpu-chart')
     };
-    return card;
+    return row;
   }
 
-  function buildMemoryCard() {
-    var card = el('article', 'sys-card');
-    card.innerHTML =
-      '<div class="sys-head"><span class="sys-title">内存</span><span class="sys-sub mem-sub"></span></div>' +
-      '<div class="mem-value"><span class="used">—</span><span class="sep">/</span><span class="total">—</span></div>' +
-      '<div class="bar big"><div class="bar-fill mem-bar"></div></div>' +
-      '<div class="mem-foot"><span class="mem-pct"></span><span class="mem-cache"></span></div>';
+  function buildMemoryRow() {
+    var row = el('article', 'sys-row');
+    row.innerHTML =
+      '<div class="sys-label">内存</div>' +
+      '<div class="sys-body">' +
+      '  <div class="sys-line">' +
+      '    <span class="sys-value"><span class="mem-used">—</span><span class="unit mem-unit"></span></span>' +
+      '    <span class="sys-meta mem-sub"></span>' +
+      '  </div>' +
+      '  <div class="meter"><i class="mem-bar"></i></div>' +
+      '</div>';
 
     refs.mem = {
-      root: card,
-      sub: card.querySelector('.mem-sub'),
-      used: card.querySelector('.used'),
-      total: card.querySelector('.total'),
-      bar: card.querySelector('.mem-bar'),
-      pct: card.querySelector('.mem-pct'),
-      cache: card.querySelector('.mem-cache')
+      root: row,
+      sub: row.querySelector('.mem-sub'),
+      used: row.querySelector('.mem-used'),
+      unit: row.querySelector('.mem-unit'),
+      bar: row.querySelector('.mem-bar')
     };
-    refs.mem.bar.style.background = 'linear-gradient(90deg, #F4801A, #FFA94D)';
-    return card;
+    return row;
   }
 
   function buildGpuCard() {
-    var root = el('article', 'gpu-card');
+    var root = el('article', 'gpu-row');
     root.innerHTML =
-      '<div class="gpu-head">' +
-      '  <span class="gpu-index"></span>' +
-      '  <span class="gpu-name"></span>' +
-      '  <span class="temp-pill"></span>' +
-      '</div>' +
-      '<div class="metric metric-primary">' +
-      '  <div class="metric-row"><span class="metric-label">显存</span>' +
-      '  <span class="metric-value"><span class="mem-val"></span> <span class="mem-pct"></span></span></div>' +
-      '  <div class="bar big"><div class="bar-fill mem-fill"></div></div>' +
-      '</div>' +
-      '<div class="metric metric-sub">' +
-      '  <div class="metric-row"><span class="metric-label">利用率</span><span class="metric-value util-val"></span></div>' +
-      '  <div class="bar thin"><div class="bar-fill util-fill"></div></div>' +
-      '</div>' +
-      '<div class="gpu-users"></div>';
+      '<div class="gpu-idx"></div>' +
+      '<div class="gpu-body">' +
+      '  <div class="gpu-head">' +
+      '    <span class="gpu-name"></span>' +
+      '    <span class="gpu-meta temp"><span class="lbl">TEMP</span><span class="val"></span></span>' +
+      '    <span class="gpu-meta util"><span class="lbl">UTIL</span><span class="val"></span></span>' +
+      '  </div>' +
+      '  <div class="gpu-mem">' +
+      '    <span class="mem-used"></span><span class="mem-unit"></span><span class="mem-pct"></span>' +
+      '  </div>' +
+      '  <div class="gpu-bars">' +
+      '    <div class="meter"><i class="mem-fill"></i></div>' +
+      '    <div class="meter thin"><i class="util-fill"></i></div>' +
+      '  </div>' +
+      '  <div class="gpu-procs"><span class="procs-label">进程</span></div>' +
+      '</div>';
 
     return {
       root: root,
-      index: root.querySelector('.gpu-index'),
+      index: root.querySelector('.gpu-idx'),
       name: root.querySelector('.gpu-name'),
-      temp: root.querySelector('.temp-pill'),
-      utilVal: root.querySelector('.util-val'),
+      temp: root.querySelector('.gpu-meta.temp'),
+      tempVal: root.querySelector('.gpu-meta.temp .val'),
+      util: root.querySelector('.gpu-meta.util'),
+      utilVal: root.querySelector('.gpu-meta.util .val'),
       utilFill: root.querySelector('.util-fill'),
-      memVal: root.querySelector('.mem-val'),
+      memUsed: root.querySelector('.mem-used'),
+      memUnit: root.querySelector('.mem-unit'),
       memPct: root.querySelector('.mem-pct'),
       memFill: root.querySelector('.mem-fill'),
-      users: root.querySelector('.gpu-users')
+      users: root.querySelector('.gpu-procs')
     };
   }
 
@@ -285,39 +303,38 @@
   }
 
   function updateGpuCard(card, gpu) {
-    card.index.textContent = '[' + gpu.index + ']';
+    card.index.textContent = pad2(gpu.index);
     card.name.textContent = gpu.name || 'GPU';
     card.name.title = gpu.name || '';
 
-    card.temp.textContent = typeof gpu.temperature === 'number' ? gpu.temperature + '°C' : '—';
-    card.temp.className = 'temp-pill ' + tempClass(gpu.temperature);
+    card.temp.className = 'gpu-meta temp ' + tempState(gpu.temperature);
+    card.tempVal.textContent = typeof gpu.temperature === 'number' ? gpu.temperature + '°C' : '—';
 
+    card.util.className = 'gpu-meta util ' + utilState(gpu.utilization);
     card.utilVal.textContent = pctText(gpu.utilization);
     var util = typeof gpu.utilization === 'number' ? clamp(gpu.utilization, 0, 100) : 0;
     card.utilFill.style.width = util + '%';
-    card.utilFill.style.background = barColor(gpu.utilization);
 
     var memPct = gpu.memoryTotal > 0 ? (gpu.memoryUsed / gpu.memoryTotal) * 100 : 0;
-    card.memVal.textContent = gpu.memoryUsed + ' / ' + gpu.memoryTotal + ' MB';
-    card.memPct.textContent = gpu.memoryTotal > 0 ? '(' + memPct.toFixed(1) + '%)' : '';
+    card.memUsed.textContent = fmtGB((gpu.memoryUsed || 0) * 1024 * 1024);
+    card.memUnit.textContent = '/ ' + fmtGB((gpu.memoryTotal || 0) * 1024 * 1024) + ' GB';
+    card.memPct.textContent = gpu.memoryTotal > 0 ? memPct.toFixed(1) + '%' : '';
     card.memFill.style.width = clamp(memPct, 0, 100) + '%';
 
     var procs = sortProcesses(gpu.processes);
     card.users.textContent = '';
-    card.users.appendChild(el('span', 'users-label', '用户'));
+    card.users.appendChild(el('span', 'procs-label', '进程'));
     if (!procs.length) {
-      card.users.appendChild(el('span', 'muted', '空闲'));
+      card.users.appendChild(el('span', 'procs-empty', '空闲'));
       return;
     }
     // 与 gpustat 一致：每个进程单独显示（同一用户的多个进程不合并）
     procs.slice(0, MAX_PROCESS_CHIPS).forEach(function (p) {
-      var chip = el('span', 'user-chip');
-      var dot = el('i');
-      dot.style.background = userColor(p.user);
-      chip.appendChild(dot);
-      chip.appendChild(document.createTextNode(p.user + '(' + p.memory + 'M)'));
-      chip.title = 'PID ' + p.pid + ' · ' + (p.command || '?') + ' · ' + p.memory + ' MB';
-      card.users.appendChild(chip);
+      var cell = el('span', 'proc');
+      cell.appendChild(el('b', null, p.user));
+      cell.appendChild(el('span', null, p.memory + 'M'));
+      cell.title = 'PID ' + p.pid + ' · ' + (p.command || '?') + ' · ' + p.memory + ' MB';
+      card.users.appendChild(cell);
     });
 
     // 进程极多时仅折叠尾部（不是按用户合并），悬停可查看全部明细
@@ -326,7 +343,7 @@
       var restMemory = restProcs.reduce(function (a, p) {
         return a + (p.memory || 0);
       }, 0);
-      var more = el('span', 'user-chip more', '+' + restProcs.length + ' 进程 · ' + restMemory + 'M');
+      var more = el('span', 'proc more', '+' + restProcs.length + ' 进程 · ' + restMemory + 'M');
       more.title = restProcs
         .map(function (p) {
           return p.user + '(' + p.memory + 'M) · PID ' + p.pid + ' · ' + (p.command || '?');
@@ -418,13 +435,18 @@
     cpu.sub.title = cpuInfo.model || '';
 
     var memory = snapshot.memory || {};
-    mem.used.textContent = fmtGB(memory.used) + ' GB';
-    mem.total.textContent = fmtGB(memory.total) + ' GB';
+    mem.used.textContent = fmtGB(memory.used);
+    mem.unit.textContent = '/ ' + fmtGB(memory.total) + ' GB';
     var memPct = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
     mem.bar.style.width = clamp(memPct, 0, 100) + '%';
-    mem.pct.textContent = '已用 ' + memPct.toFixed(1) + '%';
-    mem.cache.textContent = '缓存 ' + fmtGB(memory.cached) + ' GB';
-    mem.sub.textContent = '可用 ' + fmtGB(memory.available) + ' GB';
+    mem.sub.textContent =
+      '已用 ' +
+      memPct.toFixed(1) +
+      '% · 缓存 ' +
+      fmtGB(memory.cached) +
+      ' GB · 可用 ' +
+      fmtGB(memory.available) +
+      ' GB';
 
     var gpuCount = (snapshot.gpus || []).length;
     refs.sysSummary.textContent = gpuCount ? 'GPU ' + gpuCount + ' 张 · nvidia-smi 采集' : 'nvidia-smi 采集';
@@ -464,6 +486,7 @@
     var h = canvas.clientHeight;
     if (!w || !h) return;
 
+    var accent = cssVar('--accent', '#2c6e94');
     var dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -471,15 +494,16 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
+    // 参考线：仅 50% 一条，发丝级
     ctx.strokeStyle = 'rgba(127,127,127,0.22)';
     ctx.lineWidth = 1;
-    [25, 50, 75].forEach(function (p) {
-      var y = Math.round(h - (p / 100) * h) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    });
+    ctx.setLineDash([2, 3]);
+    var mid = Math.round(h - 0.5 * h) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    ctx.lineTo(w, mid);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
     var cpuPts = history
       .map(function (p) {
@@ -490,8 +514,8 @@
       });
 
     if (cpuPts.length < 2) {
-      ctx.fillStyle = 'rgba(127,127,127,0.75)';
-      ctx.font = '11px sans-serif';
+      ctx.fillStyle = 'rgba(127,127,127,0.7)';
+      ctx.font = '10px ' + cssVar('--mono', 'monospace');
       ctx.textAlign = 'center';
       ctx.fillText('等待更多采样数据…', w / 2, h / 2);
       return;
@@ -509,8 +533,8 @@
         ctx.lineTo(x, y);
       }
     });
-    ctx.strokeStyle = '#2EA043';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.25;
     ctx.lineJoin = 'round';
     ctx.stroke();
 
@@ -518,8 +542,8 @@
     ctx.lineTo(0, h);
     ctx.closePath();
     var grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, 'rgba(46,160,67,0.42)');
-    grad.addColorStop(1, 'rgba(46,160,67,0.03)');
+    grad.addColorStop(0, withAlpha(accent, 0.14));
+    grad.addColorStop(1, withAlpha(accent, 0.01));
     ctx.fillStyle = grad;
     ctx.fill();
   }
