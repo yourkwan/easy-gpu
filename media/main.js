@@ -509,7 +509,9 @@
     }
     var right = el('span');
     if (state.snapshot && state.durationMs) {
-      right.textContent = '上次刷新 ' + (state.durationMs / 1000).toFixed(1) + 's';
+      // 两位小数：这是「一次刷新的耗时」而不是时钟，保留两位才能看出每次的波动
+      right.textContent = '刷新耗时 ' + (state.durationMs / 1000).toFixed(2) + 's';
+      right.title = '最近一次刷新的实际耗时（SSH 连接 + 远程采集脚本），与刷新间隔无关';
     }
     footer.appendChild(left);
     footer.appendChild(right);
