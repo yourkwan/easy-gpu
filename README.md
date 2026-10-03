@@ -2,7 +2,9 @@
 
 > 在 TraeCode / VS Code 中查看远程 SSH 服务器的 GPU、CPU 与内存状态 —— gpustat 风格面板，带逐进程显存占用统计。
 
-![version](https://img.shields.io/badge/version-1.1.0-blue) ![license](https://img.shields.io/badge/license-MIT-green) ![platform](https://img.shields.io/badge/platform-TraeCode%20%7C%20VS%20Code-7c3aed)
+**作者 [@yourkwan](https://github.com/yourkwan)　·　仓库 [github.com/yourkwan/easy-gpu](https://github.com/yourkwan/easy-gpu)**　欢迎 Star，问题请到 [Issues](https://github.com/yourkwan/easy-gpu/issues) 反馈。
+
+![GitHub](https://img.shields.io/badge/GitHub-yourkwan%2Feasy--gpu-181717?logo=github) ![version](https://img.shields.io/badge/version-1.1.0-blue) ![license](https://img.shields.io/badge/license-MIT-green) ![platform](https://img.shields.io/badge/platform-TraeCode%20%7C%20VS%20Code-7c3aed)
 
 ![面板概览](docs/screenshot-overview.png)
 
@@ -25,7 +27,7 @@
 
 ### TraeCode / VS Code（导入 VSIX）
 
-1. 下载仓库中的 [easy-gpu-1.1.0.vsix](easy-gpu-1.1.0.vsix)
+1. 下载 [easy-gpu-1.1.0.vsix](https://github.com/yourkwan/easy-gpu/raw/main/easy-gpu-1.1.0.vsix)（也可在[仓库首页](https://github.com/yourkwan/easy-gpu)直接点选该文件下载）
 2. 打开扩展面板（`Ctrl+Shift+X` / `Cmd+Shift+X`），点击右上角 `···` → **从 VSIX 安装…**
    （也可在命令面板执行 `Extensions: Install from VSIX...`）
 3. 重新加载窗口，左下角出现 `Easy GPU · 未连接`
