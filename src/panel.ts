@@ -1,10 +1,16 @@
 import * as vscode from 'vscode';
+import { mergeProcesses, refreshInterval } from './config';
 import { MonitorService } from './service';
 import { WebviewConfig } from './types';
 
 /** Webview 仪表盘（单例）。 */
 export class DashboardPanel {
   private static current: DashboardPanel | undefined;
+
+  /** 设置变化时只推送新配置，不必重新采集一次数据。 */
+  static notifyConfigChanged(): void {
+    DashboardPanel.current?.postState();
+  }
 
   static createOrShow(context: vscode.ExtensionContext, service: MonitorService): DashboardPanel {
     if (DashboardPanel.current) {
@@ -49,7 +55,7 @@ export class DashboardPanel {
             void vscode.commands.executeCommand('easy-gpu.manageConnections');
             break;
           case 'openSettings':
-            void vscode.commands.executeCommand('workbench.action.openSettings', 'easy-gpu');
+            void vscode.commands.executeCommand('easy-gpu.openSettings');
             break;
         }
       },
@@ -63,7 +69,10 @@ export class DashboardPanel {
   }
 
   private postState(): void {
-    const config: WebviewConfig = { refreshInterval: this.service.refreshInterval };
+    const config: WebviewConfig = {
+      refreshInterval: refreshInterval(),
+      mergeProcesses: mergeProcesses()
+    };
     void this.panel.webview.postMessage({
       type: 'state',
       state: this.service.getState(),

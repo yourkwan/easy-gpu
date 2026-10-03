@@ -60,4 +60,6 @@ export interface MonitorState {
 
 export interface WebviewConfig {
   refreshInterval: number;
+  /** 是否把同一用户的多个进程合并为一条 */
+  mergeProcesses: boolean;
 }

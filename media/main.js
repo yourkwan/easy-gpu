@@ -7,7 +7,7 @@
   var MAX_PROCESS_CHIPS = 12;
 
   var state = { status: 'idle', host: '' };
-  var config = { refreshInterval: 5 };
+  var config = { refreshInterval: 5, mergeProcesses: false };
   var history = [];
   var lastSampleKey = '';
   var skeletonBuilt = false;
@@ -81,6 +81,28 @@
     return (processes || []).slice().sort(function (a, b) {
       return (b.memory || 0) - (a.memory || 0);
     });
+  }
+
+  /** 把同一用户的多个进程合并为一条（显存合计），供「合并同一用户的进程」开关使用。 */
+  function mergeProcessesByUser(processes) {
+    var order = [];
+    var byUser = {};
+    processes.forEach(function (p) {
+      var key = p.user || '?';
+      if (!byUser[key]) {
+        byUser[key] = { user: key, memory: 0, items: [] };
+        order.push(key);
+      }
+      byUser[key].memory += p.memory || 0;
+      byUser[key].items.push(p);
+    });
+    return order
+      .map(function (key) {
+        return byUser[key];
+      })
+      .sort(function (a, b) {
+        return b.memory - a.memory;
+      });
   }
 
   // ---------------- skeleton ----------------
@@ -325,25 +347,54 @@
       card.users.appendChild(el('span', 'procs-empty', '空闲'));
       return;
     }
-    // 与 gpustat 一致：每个进程单独显示（同一用户的多个进程不合并）
-    procs.slice(0, MAX_PROCESS_CHIPS).forEach(function (p) {
+
+    // 默认逐个进程显示（与 gpustat 一致）；开启合并后同一用户只占一条，显存合计
+    var entries = config.mergeProcesses
+      ? mergeProcessesByUser(procs).map(function (group) {
+          return {
+            user: group.user,
+            memory: group.memory,
+            title:
+              group.user +
+              '：' +
+              group.items.length +
+              ' 个进程 · 合计 ' +
+              group.memory +
+              ' MB\n' +
+              group.items
+                .map(function (p) {
+                  return 'PID ' + p.pid + ' · ' + p.memory + 'M · ' + (p.command || '?');
+                })
+                .join('\n')
+          };
+        })
+      : procs.map(function (p) {
+          return {
+            user: p.user,
+            memory: p.memory,
+            title: 'PID ' + p.pid + ' · ' + (p.command || '?') + ' · ' + p.memory + ' MB'
+          };
+        });
+
+    entries.slice(0, MAX_PROCESS_CHIPS).forEach(function (entry) {
       var cell = el('span', 'proc');
-      cell.appendChild(el('b', null, p.user));
-      cell.appendChild(el('span', null, p.memory + 'M'));
-      cell.title = 'PID ' + p.pid + ' · ' + (p.command || '?') + ' · ' + p.memory + ' MB';
+      cell.appendChild(el('b', null, entry.user));
+      cell.appendChild(el('span', null, entry.memory + 'M'));
+      cell.title = entry.title;
       card.users.appendChild(cell);
     });
 
-    // 进程极多时仅折叠尾部（不是按用户合并），悬停可查看全部明细
-    var restProcs = procs.slice(MAX_PROCESS_CHIPS);
-    if (restProcs.length) {
-      var restMemory = restProcs.reduce(function (a, p) {
-        return a + (p.memory || 0);
+    // 条目过多时只折叠尾部，悬停可查看全部明细
+    var rest = entries.slice(MAX_PROCESS_CHIPS);
+    if (rest.length) {
+      var restMemory = rest.reduce(function (a, entry) {
+        return a + (entry.memory || 0);
       }, 0);
-      var more = el('span', 'proc more', '+' + restProcs.length + ' 进程 · ' + restMemory + 'M');
-      more.title = restProcs
-        .map(function (p) {
-          return p.user + '(' + p.memory + 'M) · PID ' + p.pid + ' · ' + (p.command || '?');
+      var unit = config.mergeProcesses ? ' 个用户' : ' 进程';
+      var more = el('span', 'proc more', '+' + rest.length + unit + ' · ' + restMemory + 'M');
+      more.title = rest
+        .map(function (entry) {
+          return entry.user + ' · ' + entry.memory + 'M';
         })
         .join('\n');
       card.users.appendChild(more);

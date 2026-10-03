@@ -2,6 +2,14 @@
 (function () {
   'use strict';
 
+  // ?merge=1 可预览「合并同一用户的进程」效果
+  function mockConfig() {
+    return {
+      refreshInterval: 3,
+      mergeProcesses: new URLSearchParams(location.search).get('merge') === '1'
+    };
+  }
+
   var jitter = function (base, range) {
     return Math.max(0, Math.min(100, base + (Math.random() - 0.5) * range));
   };
@@ -110,7 +118,7 @@
               channel: 'builtin',
               durationMs: 700 + Math.round(Math.random() * 500)
             },
-            config: { refreshInterval: 3 }
+            config: mockConfig()
           }
         })
       );
@@ -122,7 +130,7 @@
           data: {
             type: 'state',
             state: { status: 'connecting', host: 'wzszju@gpu-lab' },
-            config: { refreshInterval: 3 }
+            config: mockConfig()
           }
         })
       );

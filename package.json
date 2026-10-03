@@ -49,6 +49,11 @@
         "category": "Easy GPU"
       },
       {
+        "command": "easy-gpu.openSettings",
+        "title": "设置",
+        "category": "Easy GPU"
+      },
+      {
         "command": "easy-gpu.refreshNow",
         "title": "立即刷新",
         "category": "Easy GPU"
@@ -62,7 +67,12 @@
           "default": 5,
           "minimum": 2,
           "maximum": 600,
-          "markdownDescription": "自动刷新间隔（秒）。"
+          "markdownDescription": "自动刷新间隔（秒）：一次刷新结束后再等这么久开始下一次。"
+        },
+        "easy-gpu.mergeProcesses": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "把同一用户的多个进程合并成一条显示（显存合计），例如把 `wzs 6876M`、`wzs 6110M`、`wzs 3502M` 显示为 `wzs 16488M`。默认关闭，与 gpustat 一样逐个进程显示。"
         },
         "easy-gpu.showStatusBar": {
           "type": "boolean",

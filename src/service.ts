@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { BuiltinSshTransport } from './builtinSsh';
 import { COLLECT_TIMEOUT_MS, collectSnapshot } from './collector';
 import { SshAuthError } from './errors';
+import { refreshInterval as configuredRefreshInterval } from './config';
 import { profileLabel, ProfileStore, sshHostArg, sshTarget, StoredProfile } from './profiles';
 import { runRemoteScript } from './ssh';
 import { Channel, MonitorState } from './types';
@@ -41,8 +42,7 @@ export class MonitorService implements vscode.Disposable {
   }
 
   get refreshInterval(): number {
-    const value = vscode.workspace.getConfiguration('easy-gpu').get<number>('refreshInterval', 5);
-    return Math.min(600, Math.max(2, Number.isFinite(value) ? value : 5));
+    return configuredRefreshInterval();
   }
 
   /** 启动（或重启）轮询。 */

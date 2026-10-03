@@ -1,5 +1,25 @@
 import * as vscode from 'vscode';
-import { Channel, MonitorState, Snapshot } from './types';
+import { mergeProcesses } from './config';
+import { Channel, GpuProcess, MonitorState, Snapshot } from './types';
+
+/** 进程概览文案：按设置决定是否合并同一用户的多个进程。 */
+function formatProcesses(processes: GpuProcess[]): string {
+  if (!processes.length) {
+    return '空闲';
+  }
+  if (!mergeProcesses()) {
+    // 与 gpustat 一致：逐个进程显示
+    return processes.map((p) => `${p.user}(${p.memory}M)`).join(' ');
+  }
+  const byUser = new Map<string, number>();
+  for (const process of processes) {
+    byUser.set(process.user, (byUser.get(process.user) ?? 0) + (process.memory || 0));
+  }
+  return [...byUser.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([user, memory]) => `${user}(${memory}M)`)
+    .join(' ');
+}
 
 function formatGB(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -116,10 +136,7 @@ export class StatusBar implements vscode.Disposable {
     for (const gpu of snapshot.gpus) {
       const temp = gpu.temperature !== null ? `${gpu.temperature}°C` : '—';
       const util = gpu.utilization !== null ? `${gpu.utilization}%` : '—';
-      // 与 gpustat 一致：逐进程展示，不按用户合并
-      const procText = gpu.processes.length
-        ? gpu.processes.map((p) => `${p.user}(${p.memory}M)`).join(' ')
-        : '空闲';
+      const procText = formatProcesses(gpu.processes);
       tooltip.appendMarkdown(
         `- \`[${gpu.index}]\` ${gpu.name} · ${temp} · ${util} · ${gpu.memoryUsed}/${gpu.memoryTotal} MB · ${procText}\n`
       );

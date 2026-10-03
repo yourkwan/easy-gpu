@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import { BuiltinSshTransport } from './builtinSsh';
+import { showStatusBar as statusBarVisible } from './config';
 import { runConnectWizard, showConnectionManager } from './connectFlow';
 import { HostKeyStoreAdapter, SecretCredentialStore, VsCodeAuthInteraction } from './credentials';
 import { DashboardPanel } from './panel';
 import { addressPart, profileId, ProfileStore } from './profiles';
 import { MonitorService } from './service';
+import { showSimpleSettings } from './settingsUi';
 import { resolveHost, expandHome } from './sshConfig';
 import { StatusBar } from './statusbar';
 
@@ -34,7 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const connectNew = () => runConnectWizard(deps);
 
   const syncStatusBar = (state = service.getState()) => {
-    const visible = vscode.workspace.getConfiguration('easy-gpu').get<boolean>('showStatusBar', true);
+    const visible = statusBarVisible();
     statusBar.setVisible(visible);
     if (visible) {
       statusBar.update(state);
@@ -54,6 +56,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('easy-gpu.connect', () => connectNew()),
     vscode.commands.registerCommand('easy-gpu.manageConnections', () => openManager()),
+    vscode.commands.registerCommand('easy-gpu.openSettings', () =>
+      showSimpleSettings(() => {
+        DashboardPanel.notifyConfigChanged();
+        syncStatusBar();
+      })
+    ),
     vscode.commands.registerCommand('easy-gpu.refreshNow', async () => {
       if (!service.profile) {
         await openManager();
@@ -62,12 +70,15 @@ export function activate(context: vscode.ExtensionContext): void {
       await service.refresh({ manual: true });
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration('easy-gpu')) {
+        return;
+      }
       if (event.affectsConfiguration('easy-gpu.refreshInterval')) {
+        // 间隔变了要重新计时，顺带立即刷新一次
         service.start();
       }
-      if (event.affectsConfiguration('easy-gpu.showStatusBar')) {
-        syncStatusBar();
-      }
+      DashboardPanel.notifyConfigChanged();
+      syncStatusBar();
     })
   );
 
