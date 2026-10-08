@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Easy GPU 1.2.0 · UI 原型</title>
+<style>
+/* ============================================================
+   Easy GPU 1.2.0 UI 原型（自包含，仅用于设计评审）
+   风格：极简科技 / iOS 原生感 / 高对比度 / 强调色 / 高度结构化
+   结构：悬浮胶囊（灵动岛，短⇄长）+ 胶囊页 + 窗口页
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f2f2f7;
+  --elev: #ffffff;
+  --elev-2: #e9e9ef;
+  --fg: #1c1c1e;
+  --fg-2: #48484a;
+  --fg-3: #55555a;
+  --sep: rgba(60, 60, 67, 0.18);
+  --track: rgba(120, 120, 128, 0.16);
+
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, 0.14);
+
+  --ok: #248a3d;
+  --warn: #b25000;
+  --err: #d70015;
+
+  --island-bg: #ffffff;
+  --island-fg: #1c1c1e;
+  --island-border: rgba(255, 255, 255, 0.7);
+  --island-shadow: 0 14px 38px rgba(0, 0, 0, 0.18), 0 3px 10px rgba(0, 0, 0, 0.1);
+
+  --sans: -apple-system, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue",
+    "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --r-lg: 18px;
+  --r-md: 12px;
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body.dark {
+  color-scheme: dark;
+  --bg: #08080a;
+  --elev: #1c1c1e;
+  --elev-2: #2c2c2e;
+  --fg: #f5f5f7;
+  --fg-2: #d1d1d6;
+  --fg-3: #b3b3ba;
+  --sep: rgba(255, 255, 255, 0.14);
+  --track: rgba(255, 255, 255, 0.16);
+  --ok: #30d158;
+  --warn: #ff9f0a;
+  --err: #ff453a;
+  --island-bg: #17171a;
+  --island-fg: #f5f5f7;
+  --island-border: rgba(255, 255, 255, 0.18);
+  --island-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* 7 种 iOS 系统强调色（浅 / 深双套高对比值） */
+body[data-color="blue"]   { --accent: #007aff; --accent-soft: rgba(0, 122, 255, 0.14); }
+body[data-color="cyan"]   { --accent: #32ade6; --accent-soft: rgba(50, 173, 230, 0.16); }
+body[data-color="green"]  { --accent: #34c759; --accent-soft: rgba(52, 199, 89, 0.16); }
+body[data-color="purple"] { --accent: #af52de; --accent-soft: rgba(175, 82, 222, 0.15); }
+body[data-color="pink"]   { --accent: #ff2d55; --accent-soft: rgba(255, 45, 85, 0.14); }
+body[data-color="orange"] { --accent: #ff9500; --accent-soft: rgba(255, 149, 0, 0.16); }
+body[data-color="red"]    { --accent: #ff3b30; --accent-soft: rgba(255, 59, 48, 0.14); }
+
+body.dark[data-color="blue"]   { --accent: #0a84ff; --accent-soft: rgba(10, 132, 255, 0.22); }
+body.dark[data-color="cyan"]   { --accent: #64d2ff; --accent-soft: rgba(100, 210, 255, 0.2); }
+body.dark[data-color="green"]  { --accent: #30d158; --accent-soft: rgba(48, 209, 88, 0.2); }
+body.dark[data-color="purple"] { --accent: #bf5af2; --accent-soft: rgba(191, 90, 242, 0.22); }
+body.dark[data-color="pink"]   { --accent: #ff375f; --accent-soft: rgba(255, 55, 95, 0.2); }
+body.dark[data-color="orange"] { --accent: #ff9f0a; --accent-soft: rgba(255, 159, 10, 0.2); }
+body.dark[data-color="red"]    { --accent: #ff453a; --accent-soft: rgba(255, 69, 58, 0.2); }
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.35s ease, color 0.35s ease;
+}
+
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------- 悬浮胶囊（灵动岛） ---------------- */
+.island {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: 138px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--island-border);
+  border-radius: 999px;
+  background: var(--island-bg);
+  color: var(--island-fg);
+  box-shadow: var(--island-shadow);
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  transition: width 0.55s var(--ease-ios), height 0.55s var(--ease-ios),
+    border-radius 0.55s var(--ease-ios), box-shadow 0.4s ease;
+  animation: island-in 0.7s var(--ease-ios) both;
+}
+
+@keyframes island-in {
+  from { transform: translateX(-50%) translateY(-14px) scale(0.86); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+
+.island.expanded {
+  width: min(432px, calc(100vw - 32px));
+  height: 122px;
+  border-radius: 26px;
+}
+
+.island-short {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  white-space: nowrap;
+  transition: opacity 0.25s ease, transform 0.35s var(--ease-ios);
+}
+
+.island.expanded .island-short {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+
+.island-long {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.3s ease 0.08s, transform 0.4s var(--ease-ios) 0.06s;
+}
+
+.island.expanded .island-long {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.dot.connecting { background: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
+.dot.error      { background: var(--err); }
+.dot.idle       { background: var(--fg-3); }
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.82); }
+}
+
+.short-text {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.island-long .long-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.island-long .host {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.island-long .count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-3);
+  letter-spacing: 0.06em;
+}
+
+.island-long .long-summary {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.long-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--island-fg) 9%, transparent);
+  color: var(--island-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.18s var(--ease-ios), background 0.2s ease;
+}
+
+.icon-btn:hover { background: color-mix(in srgb, var(--island-fg) 16%, transparent); }
+.icon-btn:active { transform: scale(0.9); }
+
+.icon-btn.window {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+}
+
+.icon-btn.window:hover { background: color-mix(in srgb, var(--accent) 84%, #000); }
+
+.icon-btn svg { width: 15px; height: 15px; display: block; }
+
+/* ---------------- 视图容器 ---------------- */
+.view {
+  min-height: 100vh;
+  animation: view-in 0.5s var(--ease-ios) both;
+}
+
+.view.hidden { display: none; }
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------- 胶囊页 ---------------- */
+.view-capsule {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  overflow: hidden;
+}
+
+.ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(520px 320px at 50% -6%, var(--accent-soft), transparent 68%),
+    radial-gradient(700px 420px at 88% 108%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+}
+
+.ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--sep) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--sep) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.14;
+  -webkit-mask-image: radial-gradient(560px 380px at 50% 42%, #000, transparent 78%);
+  mask-image: radial-gradient(560px 380px at 50% 42%, #000, transparent 78%);
+}
+
+.capsule-hero {
+  position: relative;
+  text-align: center;
+  max-width: 420px;
+  padding: 0 24px;
+}
+
+.capsule-hero .kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.capsule-hero .headline {
+  margin: 10px 0 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.capsule-hero .headline .num { color: var(--accent); }
+
+.capsule-hero .sub {
+  margin: 10px 0 0;
+  color: var(--fg-3);
+  font-size: 12.5px;
+}
+
+.hint {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  color: var(--fg-3);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  animation: fade-up 0.8s var(--ease-ios) 0.25s both;
+}
+
+.hint b { color: var(--fg-2); font-weight: 600; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.wordmark {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+/* ---------------- 窗口页 ---------------- */
+.view-window {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 92px 26px 64px;
+  transition: padding-top 0.5s var(--ease-ios);
+}
+
+/* 展开胶囊时让出头部空间，避免遮挡标题 */
+body.island-expanded .view-window { padding-top: 172px; }
+
+.win-head {
+  animation: fade-up 0.55s var(--ease-ios) both;
+}
+
+.win-head h1 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge .dot { width: 6px; height: 6px; }
+.badge.error { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+.badge.idle  { background: var(--track); color: var(--fg-3); }
+
+.diag {
+  color: var(--fg-3);
+  font-size: 11.5px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.banner {
+  margin-top: 18px;
+  padding: 11px 14px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--err) 11%, transparent);
+  color: var(--err);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.banner.hidden { display: none; }
+
+.group { margin-top: 30px; }
+
+.group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin: 0 4px 10px;
+}
+
+.gpu-list { display: flex; flex-direction: column; gap: 12px; }
+
+.gcard {
+  background: var(--elev);
+  border-radius: var(--r-lg);
+  padding: 15px 18px 13px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  animation: fade-up 0.55s var(--ease-ios) both;
+}
+
+body.dark .gcard { box-shadow: none; border: 1px solid var(--sep); }
+
+.gcard-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.gpu-id {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.gpu-name {
+  margin-left: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-2);
+  letter-spacing: 0.01em;
+}
+
+.gpu-metrics { display: flex; gap: 20px; }
+
+.metric { text-align: right; }
+
+.metric .m-label {
+  display: block;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.metric .m-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.metric .m-value.warm { color: var(--warn); }
+.metric .m-value.hot  { color: var(--err); }
+
+.vram-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.vram-used {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.vram-unit {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.vram-pct {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.meter {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-top: 9px;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s var(--ease-ios);
+}
+
+.procs { margin-top: 11px; border-top: 1px solid var(--sep); }
+
+.proc {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--sep);
+  font-size: 11.5px;
+}
+
+.proc:last-child { border-bottom: none; }
+
+.proc b { font-weight: 600; letter-spacing: 0.01em; }
+
+.proc span {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.proc.more {
+  color: var(--fg-3);
+  border-bottom: none;
+  padding-top: 6px;
+}
+
+.proc.more span { color: var(--fg-3); }
+
+.sys-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .sys-grid { grid-template-columns: 1fr; }
+  .view-window { padding: 88px 16px 56px; }
+}
+
+.sys-card {
+  background: var(--elev);
+  border-radius: var(--r-lg);
+  padding: 15px 18px 16px;
+  animation: fade-up 0.55s var(--ease-ios) 0.08s both;
+}
+
+body.dark .sys-card { box-shadow: none; border: 1px solid var(--sep); }
+
+.sys-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sys-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.sys-big {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin-top: 6px;
+}
+
+.sys-big small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-3);
+  margin-left: 4px;
+}
+
+.sys-meta {
+  display: flex;
+  gap: 14px;
+  margin-top: 9px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--fg-3);
+}
+
+.cpu-chart {
+  display: block;
+  width: 100%;
+  height: 52px;
+  margin-top: 10px;
+}
+
+.foot {
+  margin-top: 30px;
+  text-align: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--fg-3);
+}
+
+/* ---------------- DEMO 控件（仅原型，非正式 UI） ---------------- */
+.demo {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  width: 216px;
+  padding: 12px 14px;
+  border: 1px dashed var(--fg-3);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--elev) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+.demo .demo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.demo .demo-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.demo .demo-toggle {
+  border: 1px solid var(--sep);
+  background: transparent;
+  color: var(--fg-3);
+  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.demo.collapsed .demo-row { display: none; }
+.demo.collapsed .demo-head { margin-bottom: 0; }
+
+.demo .demo-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.demo .demo-row:last-child { margin-bottom: 0; }
+
+.chip {
+  border: 1px solid var(--sep);
+  background: transparent;
+  color: var(--fg-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+.chip:hover { border-color: var(--fg-3); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.active { border-color: var(--fg); transform: scale(1.12); }
+
+.toast {
+  position: fixed;
+  left: 20px;
+  bottom: 22px;
+  transform: translateY(16px);
+  z-index: 300;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--island-bg);
+  color: var(--island-fg);
+  border: 1px solid var(--island-border);
+  box-shadow: var(--island-shadow);
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.35s var(--ease-ios);
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body data-color="blue">
+
+<!-- ============ 悬浮胶囊（灵动岛） ============ -->
+<div class="island" id="island" role="button" tabindex="0" aria-label="状态胶囊，点击展开或收起">
+  <div class="island-short">
+    <span class="dot" id="dot"></span>
+    <span class="short-text" id="short-text">--</span>
+  </div>
+  <div class="island-long">
+    <div class="long-head">
+      <span class="host" id="long-host">gpu-server-01</span>
+      <span class="count" id="countdown">--</span>
+    </div>
+    <div class="long-summary" id="long-summary">--</div>
+    <div class="long-icons">
+      <button class="icon-btn" id="btn-host" title="切换服务器" aria-label="切换服务器">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="7" rx="2"/><rect x="2" y="13" width="20" height="7" rx="2"/><path d="M6 7.5h.01M6 16.5h.01"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-refresh" title="立即刷新" aria-label="立即刷新">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+      </button>
+      <button class="icon-btn window" id="btn-window" title="打开窗口页面" aria-label="打开窗口页面">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 胶囊页 ============ -->
+<section class="view view-capsule" id="view-capsule">
+  <div class="ambient"></div>
+  <div class="capsule-hero">
+    <div class="kicker">Easy GPU · 1.2.0</div>
+    <h2 class="headline">显存 <span class="num" id="hero-mem">--</span></h2>
+    <p class="sub" id="hero-sub">正在连接监控服务器…</p>
+  </div>
+  <div class="hint">
+    <span><b>点击胶囊</b> 展开 / 收起</span>
+    <span><b>蓝色图标</b> 进入窗口页</span>
+  </div>
+  <div class="wordmark">Easy GPU</div>
+</section>
+
+<!-- ============ 窗口页 ============ -->
+<section class="view view-window hidden" id="view-window">
+  <header class="win-head">
+    <h1 id="win-host">gpu-server-01</h1>
+    <div class="head-row">
+      <span class="badge" id="win-badge"><span class="dot"></span><span id="win-badge-text">已连接</span></span>
+      <span class="diag" id="win-diag">内置客户端 · 刷新耗时 1.24s</span>
+    </div>
+  </header>
+
+  <div class="banner hidden" id="banner"></div>
+
+  <section class="group">
+    <div class="group-label">GPU</div>
+    <div class="gpu-list" id="gpu-list"></div>
+  </section>
+
+  <section class="group">
+    <div class="group-label">系统</div>
+    <div class="sys-grid">
+      <div class="sys-card">
+        <div class="sys-top">
+          <span class="sys-label">CPU</span>
+          <span class="diag" id="cpu-cores">64 核</span>
+        </div>
+        <div class="sys-big num" id="cpu-value">--<small>%</small></div>
+        <canvas class="cpu-chart" id="cpu-chart"></canvas>
+      </div>
+      <div class="sys-card">
+        <div class="sys-top">
+          <span class="sys-label">内存</span>
+          <span class="diag" id="mem-pct">--</span>
+        </div>
+        <div class="sys-big num"><span id="mem-used">--</span><small>GB / <span id="mem-total">--</span> GB</small></div>
+        <div class="meter"><i id="mem-meter" style="width:0%"></i></div>
+        <div class="sys-meta">
+          <span id="mem-cache">缓存 --</span>
+          <span id="mem-avail">可用 --</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot" id="foot">数据 -- · Easy GPU 1.2.0</footer>
+</section>
+
+<!-- ============ DEMO 控件（仅原型） ============ -->
+<aside class="demo" id="demo">
+  <div class="demo-head">
+    <div class="demo-title">Demo · 仅原型</div>
+    <button class="demo-toggle" id="demo-toggle" title="收起 / 展开演示控件">–</button>
+  </div>
+  <div class="demo-row" id="demo-theme">
+    <button class="chip" data-theme="light">浅色</button>
+    <button class="chip" data-theme="dark">深色</button>
+  </div>
+  <div class="demo-row" id="demo-color">
+    <button class="swatch" data-color="blue"   style="background:#0a84ff" title="蓝"></button>
+    <button class="swatch" data-color="cyan"   style="background:#64d2ff" title="青"></button>
+    <button class="swatch" data-color="green"  style="background:#30d158" title="绿"></button>
+    <button class="swatch" data-color="purple" style="background:#bf5af2" title="紫"></button>
+    <button class="swatch" data-color="pink"   style="background:#ff375f" title="粉"></button>
+    <button class="swatch" data-color="orange" style="background:#ff9f0a" title="橙"></button>
+    <button class="swatch" data-color="red"    style="background:#ff453a" title="红"></button>
+  </div>
+  <div class="demo-row" id="demo-status">
+    <button class="chip" data-status="ok">正常</button>
+    <button class="chip" data-status="connecting">连接中</button>
+    <button class="chip" data-status="error">错误</button>
+    <button class="chip" data-status="idle">未连接</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   原型逻辑：mock 数据 + 双视图渲染 + 胶囊交互
+   （正式版中渲染逻辑移植到 media/main.js，数据由扩展 postMessage 推送）
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var params = new URLSearchParams(location.search);
+  var COLORS = ['blue', 'cyan', 'green', 'purple', 'pink', 'orange', 'red'];
+
+  /* ---------- 主题 / 强调色 / 初始视图 ---------- */
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var dark = params.get('theme') === 'dark' || (params.get('theme') !== 'light' && prefersDark);
+  var color = COLORS.indexOf(params.get('color')) >= 0 ? params.get('color') : 'blue';
+  var view = params.get('view') === 'window' ? 'window' : 'capsule';
+
+  function applyTheme() {
+    document.body.classList.toggle('dark', dark);
+    syncDemo();
+  }
+  function applyColor() {
+    document.body.setAttribute('data-color', color);
+    syncDemo();
+    drawChart();
+  }
+
+  /* ---------- mock 数据 ---------- */
+  var PROC_POOL = [
+    ['wzs', 6876], ['lj', 814], ['wzs', 3502], ['cyy', 2210], ['hqm', 1180],
+    ['wzs', 944], ['lj', 3120], ['guest', 512], ['cyy', 1866], ['wzs', 4021]
+  ];
+
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function makeSnapshot() {
+    var gpus = [];
+    for (var i = 0; i < 4; i++) {
+      var total = 24576;
+      var used = Math.round(rand(i === 2 ? 2600 : 7800, i === 2 ? 4200 : 23200));
+      var procs = [];
+      var n = i === 2 ? 15 : 3;
+      for (var j = 0; j < n; j++) {
+        var p = PROC_POOL[(i * 3 + j) % PROC_POOL.length];
+        procs.push({ user: p[0], mem: Math.round(rand(p[1] * 0.7, p[1] * 1.2)) });
+      }
+      procs.sort(function (a, b) { return b.mem - a.mem; });
+      gpus.push({
+        index: i,
+        name: 'NVIDIA GeForce RTX 3090',
+        temperature: Math.round(rand(47, 79)),
+        utilization: Math.round(rand(8, 97)),
+        memoryTotal: total,
+        memoryUsed: used,
+        processes: procs
+      });
+    }
+    return {
+      hostname: 'gpu-server-01',
+      timestamp: new Date().toISOString(),
+      gpus: gpus,
+      cpu: { cores: 64, usedPercent: Math.round(rand(21, 88)) },
+      memory: {
+        total: 128974,
+        used: Math.round(rand(72000, 118000)),
+        cache: Math.round(rand(12000, 26000)),
+        available: Math.round(rand(8000, 32000))
+      }
+    };
+  }
+
+  var state = {
+    status: 'ok',
+    host: 'gpu-server-01',
+    channel: 'builtin',
+    durationMs: 1240,
+    updatedAt: Date.now(),
+    snapshot: makeSnapshot()
+  };
+  var config = { refreshInterval: 5, mergeProcesses: params.get('merge') === '1' };
+  var cpuHistory = [];
+  for (var hi = 0; hi < 90; hi++) cpuHistory.push(rand(18, 82));
+
+  /* ---------- 工具 ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+
+  function fmtG(b) { return (b / 1024).toFixed(1); }
+
+  function mergeByUser(procs) {
+    if (!config.mergeProcesses) return procs;
+    var map = {};
+    procs.forEach(function (p) {
+      if (!map[p.user]) map[p.user] = { user: p.user, mem: 0, detail: [] };
+      map[p.user].mem += p.mem;
+      map[p.user].detail.push(p.mem + 'M');
+    });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return b.mem - a.mem; });
+  }
+
+  function toast(text) {
+    var t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  /* ---------- 胶囊渲染 ---------- */
+  function renderIsland() {
+    var s = state.snapshot;
+    var dot = $('dot');
+    dot.className = 'dot ' + state.status;
+
+    var shortText;
+    if (state.status === 'connecting') shortText = '连接中…';
+    else if (state.status === 'error') shortText = '连接失败';
+    else if (state.status === 'idle' || !s) shortText = '未连接';
+    else {
+      var memTotal = 0, memUsed = 0;
+      s.gpus.forEach(function (g) { memTotal += g.memoryTotal; memUsed += g.memoryUsed; });
+      shortText = fmtG(memUsed) + '/' + fmtG(memTotal) + 'G';
+    }
+    $('short-text').textContent = shortText;
+
+    $('long-host').textContent = state.host || '未配置服务器';
+    $('long-summary').textContent = state.status === 'ok' && s ? summaryText(s) : shortText;
+
+    $('hero-mem').textContent = state.status === 'ok' ? shortText : '——';
+    $('hero-sub').textContent =
+      state.status === 'ok' ? summaryText(s) :
+      state.status === 'connecting' ? '正在连接监控服务器…' :
+      state.status === 'error' ? '连接失败，请在窗口页查看错误详情' : '尚未连接服务器';
+  }
+
+  function summaryText(s) {
+    var memTotal = 0, memUsed = 0, tempMax = 0;
+    s.gpus.forEach(function (g) {
+      memTotal += g.memoryTotal; memUsed += g.memoryUsed;
+      if (g.temperature > tempMax) tempMax = g.temperature;
+    });
+    return 'GPU×' + s.gpus.length +
+      ' 显存 ' + fmtG(memUsed) + '/' + fmtG(memTotal) + 'G · ' + tempMax + '°C' +
+      ' | CPU ' + s.cpu.usedPercent + '%' +
+      ' | RAM ' + fmtG(s.memory.used) + '/' + fmtG(s.memory.total) + 'G';
+  }
+
+  /* ---------- 窗口页渲染 ---------- */
+  var gpuCards = {};
+
+  function renderWindow() {
+    var s = state.snapshot;
+    $('win-host').textContent = state.host || '未配置服务器';
+
+    var badge = $('win-badge');
+    var badgeText =
+      state.status === 'ok' ? '已连接' :
+      state.status === 'connecting' ? '连接中…' :
+      state.status === 'error' ? '连接失败' : '未连接';
+    $('win-badge-text').textContent = badgeText;
+    badge.className = 'badge' + (state.status === 'error' ? ' error' : state.status === 'idle' ? ' idle' : '');
+    badge.querySelector('.dot').className = 'dot ' + state.status;
+
+    $('win-diag').textContent =
+      (state.channel === 'builtin' ? '内置客户端' : '系统 ssh') +
+      ' · 刷新耗时 ' + (state.durationMs / 1000).toFixed(2) + 's';
+
+    var banner = $('banner');
+    if (state.status === 'error') {
+      banner.classList.remove('hidden');
+      banner.textContent = '无法连接 ' + (state.host || '服务器') + '：认证失败或连接超时（演示数据）';
+    } else {
+      banner.classList.add('hidden');
+    }
+
+    if (!s) return;
+
+    var list = $('gpu-list');
+    s.gpus.forEach(function (g, i) {
+      var card = gpuCards[i];
+      if (!card) {
+        card = buildGpuCard(i);
+        gpuCards[i] = card;
+        list.appendChild(card.el);
+      }
+      updateGpuCard(card, g);
+    });
+
+    $('cpu-value').innerHTML = s.cpu.usedPercent + '<small>%</small>';
+    $('cpu-cores').textContent = s.cpu.cores + ' 核';
+    cpuHistory.push(s.cpu.usedPercent);
+    while (cpuHistory.length > 90) cpuHistory.shift();
+    drawChart();
+
+    $('mem-used').textContent = fmtG(s.memory.used);
+    $('mem-total').textContent = fmtG(s.memory.total);
+    var memPct = Math.round((s.memory.used / s.memory.total) * 100);
+    $('mem-pct').textContent = memPct + '%';
+    $('mem-meter').style.width = memPct + '%';
+    $('mem-cache').textContent = '缓存 ' + fmtG(s.memory.cache) + 'G';
+    $('mem-avail').textContent = '可用 ' + fmtG(s.memory.available) + 'G';
+
+    var t = new Date(s.timestamp);
+    var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+    $('foot').textContent = '数据 ' + hh + ' · 刷新耗时 ' + (state.durationMs / 1000).toFixed(2) + 's · Easy GPU 1.2.0';
+  }
+
+  function buildGpuCard(index) {
+    var el = document.createElement('article');
+    el.className = 'gcard';
+    el.style.animationDelay = (index * 0.06) + 's';
+    el.innerHTML =
+      '<div class="gcard-head">' +
+        '<div><span class="gpu-id">GPU <i class="num">' + index + '</i></span><span class="gpu-name"></span></div>' +
+        '<div class="gpu-metrics">' +
+          '<div class="metric"><span class="m-label">Temp</span><span class="m-value" data-f="temp">--</span></div>' +
+          '<div class="metric"><span class="m-label">Util</span><span class="m-value" data-f="util">--</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="vram-row">' +
+        '<span class="vram-used num" data-f="used">--</span>' +
+        '<span class="vram-unit" data-f="unit">GB</span>' +
+        '<span class="vram-pct num" data-f="pct">--</span>' +
+      '</div>' +
+      '<div class="meter"><i data-f="meter"></i></div>' +
+      '<div class="procs" data-f="procs"></div>';
+    return {
+      el: el,
+      name: el.querySelector('.gpu-name'),
+      temp: el.querySelector('[data-f="temp"]'),
+      util: el.querySelector('[data-f="util"]'),
+      used: el.querySelector('[data-f="used"]'),
+      unit: el.querySelector('[data-f="unit"]'),
+      pct: el.querySelector('[data-f="pct"]'),
+      meter: el.querySelector('[data-f="meter"]'),
+      procs: el.querySelector('[data-f="procs"]')
+    };
+  }
+
+  function updateGpuCard(card, g) {
+    card.name.textContent = g.name;
+    card.temp.textContent = g.temperature + '°C';
+    card.temp.className = 'm-value' + (g.temperature >= 80 ? ' hot' : g.temperature >= 65 ? ' warm' : '');
+    card.util.textContent = g.utilization + '%';
+    card.util.className = 'm-value' + (g.utilization >= 98 ? ' hot' : g.utilization >= 90 ? ' warm' : '');
+    card.used.textContent = fmtG(g.memoryUsed);
+    card.unit.textContent = 'GB / ' + fmtG(g.memoryTotal) + ' GB';
+    var pct = Math.round((g.memoryUsed / g.memoryTotal) * 100);
+    card.pct.textContent = pct + '%';
+    card.meter.style.width = pct + '%';
+
+    var procs = mergeByUser(g.processes);
+    var MAX = 12;
+    var html = '';
+    procs.slice(0, MAX).forEach(function (p) {
+      var title = config.mergeProcesses && p.detail ? ' title="' + p.detail.join(' ǀ ') + '"' : '';
+      html += '<div class="proc"' + title + '><b>' + p.user + '</b><span>' + p.mem + 'M</span></div>';
+    });
+    if (procs.length > MAX) {
+      var rest = procs.slice(MAX);
+      var restMem = rest.reduce(function (a, p) { return a + p.mem; }, 0);
+      html += '<div class="proc more"><b>+' + rest.length + ' 进程 / 用户</b><span>' + fmtG(restMem) + 'G</span></div>';
+    }
+    if (!html) html = '<div class="proc more"><b>无进程占用</b><span>0M</span></div>';
+    card.procs.innerHTML = html;
+  }
+
+  /* ---------- CPU 历史曲线 ---------- */
+  function drawChart() {
+    var canvas = $('cpu-chart');
+    if (!canvas || !canvas.offsetWidth) return;
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.offsetWidth, h = canvas.offsetHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    var accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007aff';
+    var track = getComputedStyle(document.body).getPropertyValue('--track').trim();
+
+    // 50% 参考线
+    ctx.strokeStyle = track;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    var n = cpuHistory.length;
+    if (n < 2) return;
+    var pts = cpuHistory.map(function (v, i) {
+      return [ (i / (n - 1)) * w, h - (v / 100) * (h - 6) - 3 ];
+    });
+
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, accent + '59');
+    grad.addColorStop(1, accent + '00');
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], h);
+    pts.forEach(function (p) { ctx.lineTo(p[0], p[1]); });
+    ctx.lineTo(pts[n - 1][0], h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    pts.forEach(function (p, i) { i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); });
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  /* ---------- 胶囊交互 ---------- */
+  var island = $('island');
+
+  function toggleIsland() {
+    island.classList.toggle('expanded');
+    document.body.classList.toggle('island-expanded', island.classList.contains('expanded'));
+  }
+
+  island.addEventListener('click', function (e) {
+    if (e.target.closest('.icon-btn')) return;
+    toggleIsland();
+  });
+  island.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleIsland();
+    }
+  });
+
+  $('btn-host').addEventListener('click', function () {
+    toast('演示原型：正式版中打开「切换服务器」');
+  });
+  $('btn-settings').addEventListener('click', function () {
+    toast('演示原型：正式版中打开「设置」（刷新间隔 / 颜色风格 / 合并进程）');
+  });
+  $('btn-refresh').addEventListener('click', function () {
+    simulateRefresh();
+    toast('已请求刷新');
+  });
+  $('btn-window').addEventListener('click', function () {
+    setView(view === 'window' ? 'capsule' : 'window');
+    toast(view === 'window' ? '已进入窗口页' : '已返回胶囊页');
+  });
+
+  /* ---------- 视图切换 ---------- */
+  function setView(next) {
+    view = next;
+    $('view-capsule').classList.toggle('hidden', view !== 'capsule');
+    $('view-window').classList.toggle('hidden', view !== 'window');
+    if (view === 'window') {
+      renderWindow();
+      drawChart();
+      window.scrollTo({ top: 0 });
+    }
+  }
+
+  /* ---------- 倒计时 + 自动刷新模拟 ---------- */
+  function tickCountdown() {
+    if (state.status !== 'ok') {
+      $('countdown').textContent = state.status === 'connecting' ? '刷新中' : '';
+      return;
+    }
+    var remain = Math.max(0, Math.ceil((state.updatedAt + config.refreshInterval * 1000 - Date.now()) / 1000));
+    $('countdown').textContent = remain + 's';
+  }
+
+  function simulateRefresh() {
+    state.status = 'connecting';
+    renderIsland();
+    if (view === 'window') renderWindow();
+    setTimeout(function () {
+      state.snapshot = makeSnapshot();
+      state.updatedAt = Date.now();
+      state.durationMs = Math.round(rand(700, 2400));
+      state.status = 'ok';
+      renderIsland();
+      if (view === 'window') renderWindow();
+    }, 700);
+  }
+
+  setInterval(function () {
+    tickCountdown();
+    if (state.status === 'ok' && Date.now() >= state.updatedAt + config.refreshInterval * 1000) {
+      simulateRefresh();
+    }
+  }, 1000);
+
+  /* ---------- DEMO 控件 ---------- */
+  $('demo-toggle').addEventListener('click', function () {
+    var collapsed = $('demo').classList.toggle('collapsed');
+    this.textContent = collapsed ? '+' : '–';
+  });
+
+  function syncDemo() {
+    document.querySelectorAll('#demo-theme .chip').forEach(function (b) {
+      b.classList.toggle('active', (b.dataset.theme === 'dark') === dark);
+    });
+    document.querySelectorAll('#demo-color .swatch').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.color === color);
+    });
+    document.querySelectorAll('#demo-status .chip').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.status === state.status);
+    });
+  }
+
+  document.querySelectorAll('#demo-theme .chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      dark = b.dataset.theme === 'dark';
+      applyTheme();
+      drawChart();
+    });
+  });
+  document.querySelectorAll('#demo-color .swatch').forEach(function (b) {
+    b.addEventListener('click', function () {
+      color = b.dataset.color;
+      applyColor();
+    });
+  });
+  document.querySelectorAll('#demo-status .chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.status = b.dataset.status;
+      if (state.status === 'ok') state.updatedAt = Date.now();
+      renderIsland();
+      if (view === 'window') renderWindow();
+      syncDemo();
+    });
+  });
+
+  /* ---------- 启动 ---------- */
+  applyTheme();
+  applyColor();
+  setView(view);
+  renderIsland();
+  renderWindow();
+  tickCountdown();
+  window.addEventListener('resize', drawChart);
+})();
+</script>
+</body>
+</html>
