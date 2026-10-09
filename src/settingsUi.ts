@@ -1,17 +1,27 @@
 import * as vscode from 'vscode';
-import { config, mergeProcesses, refreshInterval, showStatusBar } from './config';
+import { config, mergeProcesses, refreshInterval } from './config';
+import { AccentColor } from './types';
 
 interface SettingItem extends vscode.QuickPickItem {
-  key?: 'refreshInterval' | 'showStatusBar' | 'mergeProcesses' | 'advanced';
+  key?: 'refreshInterval' | 'accentColor' | 'mergeProcesses' | 'advanced';
 }
 
-/**
- * 面板右上角「设置」打开的一处式简洁设置：
- * 只用三项（刷新间隔 / 状态栏概览 / 进程合并），回车即可切换，不必去 VS Code 设置里翻。
- */
+const ACCENT_COLORS: { value: AccentColor; label: string }[] = [
+  { value: 'blue', label: '蓝（默认）' },
+  { value: 'cyan', label: '青' },
+  { value: 'green', label: '绿' },
+  { value: 'purple', label: '紫' },
+  { value: 'pink', label: '粉' },
+  { value: 'orange', label: '橙' },
+  { value: 'red', label: '红' }
+];
+
+/** 面板「设置」打开的一处式简洁设置：刷新间隔 / 颜色风格 / 合并进程。 */
 export async function showSimpleSettings(onChange: () => void): Promise<void> {
   const build = (): SettingItem[] => {
     const interval = refreshInterval();
+    const color = config().get<string>('accentColor', 'blue');
+    const colorLabel = ACCENT_COLORS.find((c) => c.value === color)?.label ?? '蓝（默认）';
     return [
       {
         label: '刷新间隔',
@@ -20,11 +30,10 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
         key: 'refreshInterval'
       },
       {
-        label: '状态栏显示概览',
-        description: showStatusBar() ? '开' : '关',
-        detail: '在编辑器左下角显示 GPU / CPU / 内存概览',
-        picked: showStatusBar(),
-        key: 'showStatusBar'
+        label: '颜色风格',
+        description: colorLabel,
+        detail: '强调色：蓝 / 青 / 绿 / 紫 / 粉 / 橙 / 红',
+        key: 'accentColor'
       },
       {
         label: '合并同一用户的进程',
@@ -41,9 +50,7 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
     const quickPick = vscode.window.createQuickPick<SettingItem>();
     let done = false;
     const finish = () => {
-      if (done) {
-        return;
-      }
+      if (done) return;
       done = true;
       quickPick.hide();
       quickPick.dispose();
@@ -57,9 +64,7 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
 
     quickPick.onDidAccept(async () => {
       const picked = quickPick.selectedItems[0];
-      if (!picked?.key) {
-        return;
-      }
+      if (!picked?.key) return;
       if (picked.key === 'advanced') {
         finish();
         void vscode.commands.executeCommand('workbench.action.openSettings', 'easy-gpu');
@@ -79,10 +84,20 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
             return undefined;
           }
         });
-        if (value === undefined) {
-          return;
-        }
+        if (value === undefined) return;
         await config().update('refreshInterval', Number(value.trim()), vscode.ConfigurationTarget.Global);
+      } else if (picked.key === 'accentColor') {
+        const items = ACCENT_COLORS.map((c) => ({
+          label: c.label,
+          description: c.value === config().get<string>('accentColor', 'blue') ? '当前' : '',
+          value: c.value
+        }));
+        const picked = await vscode.window.showQuickPick(items, {
+          title: '选择强调色',
+          ignoreFocusOut: true
+        });
+        if (!picked) return;
+        await config().update('accentColor', picked.value, vscode.ConfigurationTarget.Global);
       } else {
         await config().update(picked.key, !picked.picked, vscode.ConfigurationTarget.Global);
       }

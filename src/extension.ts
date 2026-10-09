@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { BuiltinSshTransport } from './builtinSsh';
-import { showStatusBar as statusBarVisible } from './config';
 import { runConnectWizard, showConnectionManager } from './connectFlow';
 import { HostKeyStoreAdapter, SecretCredentialStore, VsCodeAuthInteraction } from './credentials';
 import { DashboardPanel } from './panel';
@@ -8,10 +7,8 @@ import { addressPart, profileId, ProfileStore } from './profiles';
 import { MonitorService } from './service';
 import { showSimpleSettings } from './settingsUi';
 import { resolveHost, expandHome } from './sshConfig';
-import { StatusBar } from './statusbar';
 
 export function activate(context: vscode.ExtensionContext): void {
-  // 密码 / 私钥口令统一保存到系统钥匙串，可在「管理连接与密码」中单独删除
   const rememberPassword = () => true;
 
   const credentials = new SecretCredentialStore(context.secrets);
@@ -24,7 +21,6 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const service = new MonitorService(context, builtin, store);
-  const statusBar = new StatusBar();
 
   const deps = {
     store,
@@ -35,19 +31,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const openManager = () => showConnectionManager(deps);
   const connectNew = () => runConnectWizard(deps);
 
-  const syncStatusBar = (state = service.getState()) => {
-    const visible = statusBarVisible();
-    statusBar.setVisible(visible);
-    if (visible) {
-      statusBar.update(state);
-    }
-  };
-
   context.subscriptions.push(
     service,
     builtin,
-    statusBar,
-    service.onDidChange((state) => syncStatusBar(state)),
     vscode.commands.registerCommand('easy-gpu.openDashboard', () => {
       DashboardPanel.createOrShow(context, service);
       if (!service.profile) {
@@ -59,7 +45,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('easy-gpu.openSettings', () =>
       showSimpleSettings(() => {
         DashboardPanel.notifyConfigChanged();
-        syncStatusBar();
       })
     ),
     vscode.commands.registerCommand('easy-gpu.refreshNow', async () => {
@@ -74,17 +59,13 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (event.affectsConfiguration('easy-gpu.refreshInterval')) {
-        // 间隔变了要重新计时，顺带立即刷新一次
         service.start();
       }
       DashboardPanel.notifyConfigChanged();
-      syncStatusBar();
     })
   );
 
-  // 老版本把服务器与私钥写在设置里，这里迁移成连接配置后再启动轮询
   void migrateLegacySettings(store, credentials).finally(() => {
-    syncStatusBar();
     service.start();
   });
 }
@@ -113,7 +94,6 @@ async function migrateLegacySettings(store: ProfileStore, credentials: SecretCre
       keyPath: legacyKeyPath ? expandHome(legacyKeyPath) : undefined
     });
 
-    // 把旧键下的凭据搬到新键（user@host:port），避免用户重新输一遍密码
     if (savedPassword) {
       await credentials.store(profileId(stored), 'password', savedPassword);
     }
@@ -126,7 +106,6 @@ async function migrateLegacySettings(store: ProfileStore, credentials: SecretCre
     );
   }
 
-  // 清掉已废弃的设置项，避免设置页出现无效条目
   for (const key of ['host', 'privateKeyPath', 'sshExtraArgs', 'connectionMode', 'rememberPassword']) {
     if (config.inspect(key)?.globalValue !== undefined) {
       await config.update(key, undefined, vscode.ConfigurationTarget.Global);

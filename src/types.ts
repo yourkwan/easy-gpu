@@ -58,8 +58,12 @@ export interface MonitorState {
   durationMs?: number;
 }
 
+export type AccentColor = 'blue' | 'cyan' | 'green' | 'purple' | 'pink' | 'orange' | 'red';
+
 export interface WebviewConfig {
   refreshInterval: number;
   /** 是否把同一用户的多个进程合并为一条 */
   mergeProcesses: boolean;
+  /** 强调色风格 */
+  accentColor: AccentColor;
 }
