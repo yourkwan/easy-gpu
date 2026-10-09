@@ -1,2 +1,13 @@
 node_modules/
 out/
+
+# IDE / AI 会话产物：仅保留本地，不上传
+.uploads/
+.trae/
+
+# 开发过程截图：仅保留本地
+dev/shots/
+
+# 构建产物：仓库只保留 README 引用的安装包
+*.vsix
+!easy-gpu-1.2.0.vsix
