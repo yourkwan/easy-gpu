@@ -5,12 +5,10 @@ TraeCode / VS Code 的远程 GPU 监控面板：侧边栏监控页 + 状态栏�
 ## 1. 作者 / 仓库
 
 1. 作者：[@yourkwan](https://github.com/yourkwan)
-Open VSX:
-`https://open-vsx.org/extension/yourkwan/easy-gpu`
-VScode  Marketplace:
-`https://marketplace.visualstudio.com/items?itemName=yourkwan.easy-gpu`
-2. 仓库：[yourkwan/easy-gpu](https://github.com/yourkwan/easy-gpu)
-3. 反馈：[Issues](https://github.com/yourkwan/easy-gpu/issues)
+2. github仓库：[yourkwan/easy-gpu](https://github.com/yourkwan/easy-gpu)
+3. Open VSX仓库：[easy-gpu](https://open-vsx.org/extension/yourkwan/easy-gpu)
+4. VScode插件市场：[easy-gpu](https://marketplace.visualstudio.com/items?itemName=yourkwan.easy-gpu)
+5. 反馈：[Issues](https://github.com/yourkwan/easy-gpu/issues)
 
 ## 2. 预览
 
