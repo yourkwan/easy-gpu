@@ -3,5 +3,10 @@
 **/*.ts
 **/*.map
 dev/**
+docs/**
+scripts/**
+.trae/**
+.uploads/**
+**/*.vsix
 tsconfig.json
 **/tsconfig.json
