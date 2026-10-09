@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Easy GPU 1.3.0 UI 原型（mock）</title>
+<style>
+/* ============================================================
+   Easy GPU 1.3.0 UI 原型 — 侧边栏监控页 + 原生状态栏
+   风格：极简科技 / iOS 原生感 / 高对比度 / 强调色 / 高度结构化
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #08080a;
+  --chrome: #101012;
+  --elev: #1c1c1e;
+  --elev-2: #2c2c2e;
+  --fg: #f5f5f7;
+  --fg-2: #d1d1d6;
+  --fg-3: #8e8e93;
+  --sep: rgba(255, 255, 255, 0.14);
+  --track: rgba(255, 255, 255, 0.16);
+
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.22);
+
+  --ok: #30d158;
+  --warn: #ff9f0a;
+  --err: #ff453a;
+
+  --sans: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --r-lg: 18px;
+  --r-md: 12px;
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body.light {
+  color-scheme: light;
+  --bg: #f2f2f7;
+  --chrome: #e2e2e8;
+  --elev: #ffffff;
+  --elev-2: #e9e9ef;
+  --fg: #1c1c1e;
+  --fg-2: #48484a;
+  --fg-3: #6b6b70;
+  --sep: rgba(60, 60, 67, 0.18);
+  --track: rgba(120, 120, 128, 0.16);
+  --ok: #248a3d;
+  --warn: #b25000;
+  --err: #d70015;
+}
+
+/* 7 种强调色（深色默认） */
+body[data-color="blue"]   { --accent: #0a84ff; --accent-soft: rgba(10, 132, 255, 0.22); }
+body[data-color="cyan"]   { --accent: #64d2ff; --accent-soft: rgba(100, 210, 255, 0.2); }
+body[data-color="green"]  { --accent: #30d158; --accent-soft: rgba(48, 209, 88, 0.2); }
+body[data-color="purple"] { --accent: #bf5af2; --accent-soft: rgba(191, 90, 242, 0.22); }
+body[data-color="pink"]   { --accent: #ff375f; --accent-soft: rgba(255, 55, 95, 0.2); }
+body[data-color="orange"] { --accent: #ff9f0a; --accent-soft: rgba(255, 159, 10, 0.2); }
+body[data-color="red"]    { --accent: #ff453a; --accent-soft: rgba(255, 69, 58, 0.2); }
+
+/* 7 种强调色（浅色） */
+body.light[data-color="blue"]   { --accent: #007aff; --accent-soft: rgba(0, 122, 255, 0.14); }
+body.light[data-color="cyan"]   { --accent: #32ade6; --accent-soft: rgba(50, 173, 230, 0.16); }
+body.light[data-color="green"]  { --accent: #34c759; --accent-soft: rgba(52, 199, 89, 0.16); }
+body.light[data-color="purple"] { --accent: #af52de; --accent-soft: rgba(175, 82, 222, 0.15); }
+body.light[data-color="pink"]   { --accent: #ff2d55; --accent-soft: rgba(255, 45, 85, 0.14); }
+body.light[data-color="orange"] { --accent: #ff9500; --accent-soft: rgba(255, 149, 0, 0.16); }
+body.light[data-color="red"]    { --accent: #ff3b30; --accent-soft: rgba(255, 59, 48, 0.14); }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.35s ease, color 0.35s ease;
+}
+
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.hidden { display: none !important; }
+
+/* ---------------- VS Code 外壳模拟 ---------------- */
+.ide { display: flex; height: calc(100% - 26px); }
+
+.activitybar {
+  width: 48px;
+  flex: none;
+  background: var(--chrome);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0;
+}
+
+.ab-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  cursor: default;
+}
+
+.ab-icon.active { background: var(--accent-soft); color: var(--accent); }
+.ab-icon svg { width: 19px; height: 19px; display: block; }
+
+.sidebar {
+  width: 320px;
+  flex: none;
+  background: var(--bg);
+  border-right: 1px solid var(--sep);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor { flex: 1; background: var(--chrome); position: relative; }
+
+.editor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(720px 420px at 28% 0%, color-mix(in srgb, var(--fg) 3%, transparent), transparent 72%);
+  pointer-events: none;
+}
+
+/* ---------------- 侧边栏监控页 ---------------- */
+.content { padding: 12px 14px 20px; overflow-y: auto; overflow-x: hidden; flex: 1; }
+
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+
+.host {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status { display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: var(--fg-3); }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-3); flex: none; }
+body[data-status="ok"] .dot { background: var(--ok); }
+body[data-status="connecting"] .dot { background: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
+body[data-status="error"] .dot { background: var(--err); }
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.82); }
+}
+
+.top-actions { display: flex; gap: 7px; flex: none; }
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 9px;
+  background: var(--track);
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.18s var(--ease-ios), background 0.2s ease;
+}
+
+.icon-btn:hover { background: color-mix(in srgb, var(--fg) 16%, transparent); }
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn svg { width: 15px; height: 15px; display: block; }
+
+.banner {
+  margin: 12px 2px 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.banner.err { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+.banner.info { background: var(--track); color: var(--fg-2); }
+.banner .link { text-decoration: underline; cursor: pointer; }
+
+.group { margin-top: 21px; }
+
+.group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 2px 9px;
+}
+
+.label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.pill {
+  height: 22px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--fg-3);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.22s ease, color 0.22s ease;
+}
+
+.pill.on { background: var(--accent); color: #fff; }
+
+/* GPU 卡片（iOS 小组件式） */
+.gpu-list { display: flex; flex-direction: column; gap: 10px; }
+
+.gcard {
+  background: var(--elev);
+  border-radius: var(--r-lg);
+  padding: 13px 15px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+body:not(.light) .gcard,
+body:not(.light) .sys-card { border: 1px solid var(--sep); }
+body.light .gcard,
+body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+
+.gcard-head { display: flex; align-items: center; gap: 8px; }
+
+.gpu-id {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.gpu-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gpu-metrics { display: flex; align-items: center; gap: 11px; flex: none; }
+
+.metric { text-align: right; }
+
+.m-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.m-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.m-value.warm { color: var(--warn); }
+.m-value.hot { color: var(--err); }
+
+.gcard-toggle {
+  flex: none;
+  display: inline-flex;
+  color: var(--fg-3);
+  transition: transform 0.3s var(--ease-ios);
+}
+
+.gcard.collapsed .gcard-toggle { transform: rotate(-90deg); }
+.gcard-toggle svg { width: 12px; height: 12px; display: block; }
+
+.vram-row { display: flex; align-items: baseline; gap: 7px; margin-top: 11px; }
+
+.vram-used {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.vram-unit {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--fg-3);
+}
+
+.vram-pct {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.meter {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-top: 9px;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s var(--ease-ios);
+}
+
+/* 用户显存：紧凑芯片流 */
+.procs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--sep);
+}
+
+.gcard.collapsed .procs { display: none; }
+
+.proc {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--track);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.proc b { font-weight: 600; }
+
+.proc span {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.proc.more { background: transparent; border: 1px dashed var(--sep); color: var(--fg-3); }
+.proc.more span { color: var(--fg-3); }
+
+.procs-empty { font-size: 10.5px; color: var(--fg-3); padding: 2px 0; }
+
+/* 系统区 */
+.sys-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.sys-card {
+  background: var(--elev);
+  border-radius: var(--r-lg);
+  padding: 13px 15px 14px;
+}
+
+.sys-top { display: flex; align-items: baseline; justify-content: space-between; }
+
+.sys-big {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin-top: 5px;
+}
+
+.sys-big small {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--fg-3);
+  margin-left: 4px;
+}
+
+.cpu-chart { display: block; width: 100%; height: 52px; margin-top: 9px; }
+
+.sys-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+.foot {
+  margin-top: 21px;
+  text-align: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--fg-3);
+}
+
+/* ---------------- 内嵌设置 sheet ---------------- */
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar.sheet-open .sheet-backdrop { opacity: 1; pointer-events: auto; }
+
+.sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 21;
+  background: var(--elev);
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  padding: 15px 16px 17px;
+  transform: translateY(-102%);
+  transition: transform 0.45s var(--ease-ios);
+}
+
+.sidebar.sheet-open .sheet { transform: translateY(0); }
+
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.sheet-title { font-size: 13px; font-weight: 700; }
+
+.sheet-row + .sheet-row { margin-top: 15px; }
+
+.row-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+
+.chips { display: flex; gap: 7px; }
+
+.chip {
+  height: 27px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: var(--track);
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.chip.on { background: var(--accent); color: #fff; }
+
+.swatches { display: flex; gap: 9px; }
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.18s var(--ease-ios);
+}
+
+.swatch:active { transform: scale(0.88); }
+.swatch.on { box-shadow: 0 0 0 2px var(--elev), 0 0 0 4px var(--fg-2); }
+
+.more-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--sep);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.more-row .arrow { color: var(--fg-3); }
+
+/* ---------------- 状态栏 ---------------- */
+.statusbar {
+  height: 26px;
+  background: var(--chrome);
+  border-top: 1px solid var(--sep);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.sb-wrap { position: relative; }
+
+.sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+
+.sb-item:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+
+.sb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-3); flex: none; }
+body[data-status="ok"] .sb-dot { background: var(--ok); }
+body[data-status="connecting"] .sb-dot { background: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
+body[data-status="error"] .sb-dot { background: var(--err); }
+
+.sb-text {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sb-tooltip {
+  position: absolute;
+  bottom: 32px;
+  left: 0;
+  z-index: 30;
+  max-width: 300px;
+  padding: 9px 12px;
+  border: 1px solid var(--sep);
+  border-radius: 10px;
+  background: var(--elev-2);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-line;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.sb-wrap:hover .sb-tooltip { opacity: 1; }
+
+.toast {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%) translateY(8px);
+  padding: 7px 14px;
+  border: 1px solid var(--sep);
+  border-radius: 999px;
+  background: var(--elev-2);
+  color: var(--fg);
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s var(--ease-ios);
+}
+
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body data-color="blue" data-status="idle">
+
+<div class="ide">
+  <!-- 活动栏（模拟） -->
+  <div class="activitybar">
+    <div class="ab-icon active" title="Easy GPU · 监控">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.5 4A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20h13a2.5 2.5 0 0 0 2.5-2.5v-11A2.5 2.5 0 0 0 18.5 4h-13Zm2.7 4.3a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Zm5.9.6a1 1 0 0 1 1-1h3.4a1 1 0 1 1 0 2h-3.4a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h3.4a1 1 0 1 1 0 2h-3.4a1 1 0 0 1-1-1Z"/></svg>
+    </div>
+    <div class="ab-icon" title="资源管理器">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>
+    </div>
+    <div class="ab-icon" title="搜索">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.2-4.2"/></svg>
+    </div>
+    <div class="ab-icon" title="源代码管理">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M8.5 6.6c4 .8 7 1.4 7 4.9"/></svg>
+    </div>
+    <div class="ab-icon" title="扩展">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 14v6M13.5 17h6"/></svg>
+    </div>
+  </div>
+
+  <!-- 侧边栏「监控」视图 -->
+  <div class="sidebar" id="sidebar">
+    <div class="content">
+      <header class="top">
+        <div style="min-width:0">
+          <div class="host" id="host">未配置服务器</div>
+          <div class="status"><span class="dot"></span><span id="status-text">未连接</span></div>
+        </div>
+        <div class="top-actions">
+          <button class="icon-btn" id="btn-refresh" title="立即刷新" aria-label="立即刷新">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="banner err hidden" id="banner-err"></div>
+
+      <section class="group">
+        <div class="group-head">
+          <span class="label">GPU</span>
+          <button class="pill" id="btn-merge" title="把同一用户的多个进程合并为一条显示">合并进程</button>
+        </div>
+        <div class="gpu-list" id="gpu-list"></div>
+      </section>
+
+      <section class="group">
+        <div class="group-head"><span class="label">系统</span></div>
+        <div class="sys-grid">
+          <div class="sys-card">
+            <div class="sys-top">
+              <span class="label">CPU</span>
+              <span class="num" id="cpu-cores" style="font-size:10px;color:var(--fg-3)"></span>
+            </div>
+            <div class="sys-big num"><span id="cpu-value">—</span><small>%</small></div>
+            <canvas class="cpu-chart" id="cpu-chart"></canvas>
+          </div>
+          <div class="sys-card">
+            <div class="sys-top">
+              <span class="label">内存</span>
+              <span class="num" id="mem-pct" style="font-size:10px;color:var(--fg-3)"></span>
+            </div>
+            <div class="sys-big num"><span id="mem-used">—</span><small>GB / <span id="mem-total">—</span> GB</small></div>
+            <div class="meter"><i id="mem-meter" style="width:0%"></i></div>
+            <div class="sys-meta">
+              <span id="mem-cache"></span>
+              <span id="mem-avail"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="foot" id="foot">等待数据…</footer>
+    </div>
+
+    <!-- 内嵌设置 sheet -->
+    <div class="sheet-backdrop" id="sheet-backdrop"></div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-head">
+        <div class="sheet-title">设置</div>
+        <button class="icon-btn" id="btn-sheet-close" title="关闭" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="sheet-row">
+        <div class="row-label">刷新间隔 · <span class="num" id="interval-label">10s</span></div>
+        <div class="chips" id="interval-chips">
+          <button class="chip" data-iv="5">5s</button>
+          <button class="chip on" data-iv="10">10s</button>
+          <button class="chip" data-iv="30">30s</button>
+          <button class="chip" data-iv="60">60s</button>
+        </div>
+      </div>
+      <div class="sheet-row">
+        <div class="row-label">颜色风格</div>
+        <div class="swatches" id="swatches">
+          <button class="swatch on" data-c="blue"   style="background:#0a84ff" title="蓝"></button>
+          <button class="swatch" data-c="cyan"   style="background:#64d2ff" title="青"></button>
+          <button class="swatch" data-c="green"  style="background:#30d158" title="绿"></button>
+          <button class="swatch" data-c="purple" style="background:#bf5af2" title="紫"></button>
+          <button class="swatch" data-c="pink"   style="background:#ff375f" title="粉"></button>
+          <button class="swatch" data-c="orange" style="background:#ff9f0a" title="橙"></button>
+          <button class="swatch" data-c="red"    style="background:#ff453a" title="红"></button>
+        </div>
+      </div>
+      <div class="more-row" id="more-row">
+        <span>更多设置</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- 编辑器区（模拟） -->
+  <div class="editor"></div>
+</div>
+
+<!-- 状态栏（模拟 VS Code 底部） -->
+<div class="statusbar">
+  <div class="sb-wrap">
+    <button class="sb-item" id="sb-item" title="点击打开监控">
+      <span class="sb-dot"></span><span class="sb-text" id="sb-text">未连接</span>
+    </button>
+    <div class="sb-tooltip" id="sb-tooltip">Easy GPU · 未连接
+点击打开监控</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------- 参数与配置 ----------------
+  var params = new URLSearchParams(location.search);
+
+  var config = {
+    refreshInterval: 10,
+    mergeProcesses: params.get('merge') === '1',
+    accentColor: params.get('color') || 'blue'
+  };
+
+  var forcedStatus = params.get('status'); // ok|connecting|error|idle，未传则演示循环
+
+  if (params.get('theme') === 'light') document.body.classList.add('light');
+  document.body.setAttribute('data-color', config.accentColor);
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+  /** bytes → GB（系统内存 bytes；GPU 显存 MB 需先 ×1024×1024） */
+  function fmtGB(bytes, digits) {
+    var gb = (bytes || 0) / 1024 / 1024 / 1024;
+    var d = digits === undefined ? (gb >= 100 ? 0 : gb >= 10 ? 1 : 2) : digits;
+    return gb.toFixed(d);
+  }
+
+  function pctText(v) { return typeof v === 'number' && isFinite(v) ? Math.round(v) + '%' : '—'; }
+
+  function pad2(v) { var t = String(v); return t.length < 2 ? '0' + t : t; }
+
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.body).getPropertyValue(name);
+    v = (v || '').trim();
+    return v || fallback;
+  }
+
+  function withAlpha(color, alpha) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
+    if (!m) return color;
+    var n = parseInt(m[1], 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+  }
+
+  function sortProcesses(processes) {
+    return (processes || []).slice().sort(function (a, b) { return (b.memory || 0) - (a.memory || 0); });
+  }
+
+  function mergeProcessesByUser(processes) {
+    var order = [], byUser = {};
+    processes.forEach(function (p) {
+      var key = p.user || '?';
+      if (!byUser[key]) { byUser[key] = { user: key, memory: 0, items: [] }; order.push(key); }
+      byUser[key].memory += p.memory || 0;
+      byUser[key].items.push(p);
+    });
+    return order.map(function (k) { return byUser[k]; }).sort(function (a, b) { return b.memory - a.memory; });
+  }
+
+  // ---------------- mock 数据 ----------------
+  function jitter(base, range) { return Math.max(0, Math.min(100, base + (Math.random() - 0.5) * range)); }
+  function jitterMem(base, range) { return Math.max(0, Math.round(base + (Math.random() - 0.5) * range)); }
+
+  function makeSnapshot() {
+    var users = ['lj', 'wzs', 'gfr'];
+    return {
+      timestamp: Date.now(),
+      nvidiaSmi: true,
+      cpu: {
+        usage: jitter(52, 26),
+        cores: 64,
+        model: 'Intel(R) Xeon(R) Platinum 8358P @ 2.60GHz'
+      },
+      memory: {
+        total: 134766589952,
+        used: 99070000000 + Math.random() * 3e9,
+        available: 35696589824,
+        cached: 1105954981
+      },
+      gpus: [
+        {
+          index: 0, name: 'NVIDIA GeForce RTX 3090',
+          temperature: Math.round(jitter(71, 6)), utilization: Math.round(jitter(61, 18)),
+          memoryUsed: jitterMem(18610, 200), memoryTotal: 24576,
+          processes: [
+            { pid: 1001, user: users[0], memory: 12454, command: 'python3' },
+            { pid: 1002, user: users[1], memory: 6140, command: 'python' }
+          ]
+        },
+        {
+          index: 1, name: 'NVIDIA GeForce RTX 3090',
+          temperature: Math.round(jitter(87, 4)), utilization: Math.round(jitter(100, 6)),
+          memoryUsed: jitterMem(13692, 200), memoryTotal: 24576,
+          processes: [
+            { pid: 1003, user: users[2], memory: 1788, command: 'train.py' },
+            { pid: 1004, user: users[0], memory: 11886, command: 'python3' }
+          ]
+        },
+        {
+          index: 2, name: 'NVIDIA GeForce RTX 3090',
+          temperature: Math.round(jitter(78, 5)), utilization: Math.round(jitter(97, 6)),
+          memoryUsed: jitterMem(20319, 200), memoryTotal: 24576,
+          processes: [
+            { pid: 1005, user: users[1], memory: 3502, command: 'python' },
+            { pid: 1006, user: users[0], memory: 10662, command: 'python' },
+            { pid: 1007, user: users[1], memory: 6134, command: 'python' }
+          ]
+        },
+        {
+          index: 3, name: 'NVIDIA GeForce RTX 3090',
+          temperature: Math.round(jitter(83, 4)), utilization: Math.round(jitter(100, 6)),
+          memoryUsed: jitterMem(19399, 200), memoryTotal: 24576,
+          processes: [
+            { pid: 1008, user: users[1], memory: 3502, command: 'python' },
+            { pid: 1009, user: users[1], memory: 6110, command: 'python' },
+            { pid: 1010, user: users[1], memory: 6876, command: 'python' },
+            { pid: 1011, user: users[2], memory: 684, command: 'jupyter-lab' },
+            { pid: 1012, user: users[1], memory: 682, command: 'python' },
+            { pid: 1013, user: users[0], memory: 814, command: 'python' },
+            { pid: 1014, user: 'lxy', memory: 512, command: 'python' },
+            { pid: 1015, user: 'cy', memory: 468, command: 'python' },
+            { pid: 1016, user: 'zhao', memory: 402, command: 'jupyter-lab' },
+            { pid: 1017, user: 'sunq', memory: 358, command: 'python' },
+            { pid: 1018, user: 'qian', memory: 296, command: 'python' },
+            { pid: 1019, user: users[1], memory: 1240, command: 'python' },
+            { pid: 1020, user: users[1], memory: 986, command: 'python' },
+            { pid: 1021, user: users[1], memory: 758, command: 'python' },
+            { pid: 1022, user: users[0], memory: 320, command: 'python' }
+          ]
+        }
+      ]
+    };
+  }
+
+  // ---------------- 状态 ----------------
+  var state = { status: 'idle', host: '未配置服务器', snapshot: null, updatedAt: 0, durationMs: 0 };
+  var history = [];
+  var MAX_HISTORY = 90;
+  var MAX_PROCESS_CHIPS = 12;
+  var gpuCards = {};
+
+  if (forcedStatus !== 'idle') {
+    state.host = 'wzszju@gpu-lab';
+  }
+
+  // ---------------- GPU 卡片 ----------------
+  function buildGpuCard(index) {
+    var card = el('article', 'gcard');
+    card.title = '点击收起 / 展开用户显存';
+    card.innerHTML =
+      '<div class="gcard-head">' +
+        '<span class="gpu-id">GPU ' + index + '</span>' +
+        '<span class="gpu-name"></span>' +
+        '<div class="gpu-metrics">' +
+          '<div class="metric"><span class="m-label">Temp</span><span class="m-value" data-f="temp">--</span></div>' +
+          '<div class="metric"><span class="m-label">Util</span><span class="m-value" data-f="util">--</span></div>' +
+          '<span class="gcard-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="vram-row">' +
+        '<span class="vram-used" data-f="used">--</span>' +
+        '<span class="vram-unit" data-f="unit">GB</span>' +
+        '<span class="vram-pct" data-f="pct">--</span>' +
+      '</div>' +
+      '<div class="meter"><i data-f="meter"></i></div>' +
+      '<div class="procs" data-f="procs"></div>';
+
+    card.addEventListener('click', function () { card.classList.toggle('collapsed'); });
+
+    return {
+      el: card,
+      name: card.querySelector('.gpu-name'),
+      temp: card.querySelector('[data-f="temp"]'),
+      util: card.querySelector('[data-f="util"]'),
+      used: card.querySelector('[data-f="used"]'),
+      unit: card.querySelector('[data-f="unit"]'),
+      pct: card.querySelector('[data-f="pct"]'),
+      meter: card.querySelector('[data-f="meter"]'),
+      procs: card.querySelector('[data-f="procs"]')
+    };
+  }
+
+  function renderProcs(card, gpu) {
+    var procs = sortProcesses(gpu.processes);
+    card.procs.innerHTML = '';
+    if (!procs.length) {
+      card.procs.appendChild(el('span', 'procs-empty', '空闲'));
+      return;
+    }
+
+    var entries = config.mergeProcesses
+      ? mergeProcessesByUser(procs).map(function (g) {
+          return {
+            user: g.user, memory: g.memory,
+            title: g.user + '：' + g.items.length + ' 个进程 · 合计 ' + g.memory + ' MB\n' +
+              g.items.map(function (p) { return 'PID ' + p.pid + ' · ' + p.memory + 'M · ' + (p.command || '?'); }).join('\n')
+          };
+        })
+      : procs.map(function (p) {
+          return { user: p.user, memory: p.memory, title: 'PID ' + p.pid + ' · ' + (p.command || '?') + ' · ' + p.memory + ' MB' };
+        });
+
+    entries.slice(0, MAX_PROCESS_CHIPS).forEach(function (e) {
+      var chip = el('span', 'proc');
+      chip.appendChild(el('b', null, e.user));
+      chip.appendChild(el('span', null, e.memory + 'M'));
+      chip.title = e.title;
+      card.procs.appendChild(chip);
+    });
+
+    var rest = entries.slice(MAX_PROCESS_CHIPS);
+    if (rest.length) {
+      var restMem = rest.reduce(function (a, e) { return a + (e.memory || 0); }, 0);
+      var more = el('span', 'proc more', '+' + rest.length + (config.mergeProcesses ? ' 个用户' : ' 进程') + ' · ' + restMem + 'M');
+      more.title = rest.map(function (e) { return e.user + ' · ' + e.memory + 'M'; }).join('\n');
+      card.procs.appendChild(more);
+    }
+  }
+
+  function updateGpuCard(card, gpu) {
+    card.name.textContent = gpu.name || 'GPU';
+    card.name.title = gpu.name || '';
+
+    card.temp.textContent = typeof gpu.temperature === 'number' ? gpu.temperature + '°C' : '—';
+    card.temp.className = 'm-value' + (gpu.temperature >= 80 ? ' hot' : gpu.temperature >= 65 ? ' warm' : '');
+
+    card.util.textContent = pctText(gpu.utilization);
+    card.util.className = 'm-value' + (gpu.utilization >= 98 ? ' hot' : gpu.utilization >= 90 ? ' warm' : '');
+
+    card.used.textContent = fmtGB((gpu.memoryUsed || 0) * 1024 * 1024);
+    card.unit.textContent = 'GB / ' + fmtGB((gpu.memoryTotal || 0) * 1024 * 1024) + ' GB';
+    var pct = gpu.memoryTotal > 0 ? Math.round((gpu.memoryUsed / gpu.memoryTotal) * 100) : 0;
+    card.pct.textContent = pct + '%';
+    card.meter.style.width = clamp(pct, 0, 100) + '%';
+
+    renderProcs(card, gpu);
+  }
+
+  // ---------------- CPU 曲线 ----------------
+  function drawChart() {
+    var canvas = $('cpu-chart');
+    if (!canvas) return;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+
+    var accent = cssVar('--accent', '#0a84ff');
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.strokeStyle = cssVar('--track', 'rgba(127,127,127,0.22)');
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    var mid = h / 2 + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+    ctx.setLineDash([]);
+
+    var pts = history.map(function (p) { return p.cpu; }).filter(function (v) { return typeof v === 'number'; });
+    if (pts.length < 2) return;
+
+    var stepX = w / (MAX_HISTORY - 1);
+    ctx.beginPath();
+    pts.forEach(function (v, i) {
+      var x = i * stepX;
+      var y = h - (clamp(v, 0, 100) / 100) * (h - 6) - 3;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    ctx.lineTo((pts.length - 1) * stepX, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, withAlpha(accent, 0.35));
+    grad.addColorStop(1, withAlpha(accent, 0.01));
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // ---------------- 渲染 ----------------
+  function summaryText(s) {
+    var memTotal = 0, memUsed = 0, tempMax = 0;
+    s.gpus.forEach(function (g) {
+      memTotal += g.memoryTotal; memUsed += g.memoryUsed;
+      if (g.temperature > tempMax) tempMax = g.temperature;
+    });
+    return 'GPU×' + s.gpus.length +
+      ' 显存 ' + fmtGB(memUsed * 1024 * 1024) + '/' + fmtGB(memTotal * 1024 * 1024) + 'G' +
+      (tempMax ? ' · ' + tempMax + '°C' : '') +
+      ' | CPU ' + (typeof s.cpu.usage === 'number' ? Math.round(s.cpu.usage) : '—') + '%' +
+      ' | RAM ' + fmtGB(s.memory.used) + '/' + fmtGB(s.memory.total) + 'G';
+  }
+
+  function vramTotal(s) {
+    var used = 0, total = 0;
+    s.gpus.forEach(function (g) { used += g.memoryUsed; total += g.memoryTotal; });
+    return fmtGB(used * 1024 * 1024) + '/' + fmtGB(total * 1024 * 1024) + 'G';
+  }
+
+  function render() {
+    document.body.setAttribute('data-color', config.accentColor);
+    document.body.setAttribute('data-status', state.status);
+
+    // 头部
+    $('host').textContent = state.host || '未配置服务器';
+    $('status-text').textContent =
+      state.status === 'ok' ? '已连接' :
+      state.status === 'connecting' ? '连接中…' :
+      state.status === 'error' ? '连接失败' : '未连接';
+
+    // banner（错误 / 未配置）
+    var banner = $('banner-err');
+    if (state.status === 'error') {
+      banner.className = 'banner err';
+      banner.innerHTML = '连接失败：' + (state.error || '未知错误') + '　<span class="link">新建连接</span>';
+    } else if (!state.snapshot && state.status !== 'connecting') {
+      banner.className = 'banner info';
+      banner.innerHTML = '尚未添加服务器，点击<span class="link">新建连接</span>开始。';
+    } else {
+      banner.className = 'banner err hidden';
+    }
+
+    var s = state.snapshot;
+    if (s) {
+      // GPU 卡片（缓存增删）
+      var list = $('gpu-list'), seen = {};
+      s.gpus.forEach(function (gpu) {
+        var key = String(gpu.index);
+        seen[key] = true;
+        var card = gpuCards[key];
+        if (!card) { card = buildGpuCard(gpu.index); gpuCards[key] = card; }
+        updateGpuCard(card, gpu);
+        if (card.el.parentNode !== list) list.appendChild(card.el);
+      });
+      Object.keys(gpuCards).forEach(function (key) {
+        if (!seen[key]) {
+          if (gpuCards[key].el.parentNode) gpuCards[key].el.remove();
+          delete gpuCards[key];
+        }
+      });
+
+      // 系统
+      $('cpu-value').textContent = (s.cpu.usage === null || s.cpu.usage === undefined) ? '—' : Math.round(s.cpu.usage);
+      $('cpu-cores').textContent = s.cpu.cores ? s.cpu.cores + ' 核' : '';
+
+      var memPct = s.memory.total > 0 ? (s.memory.used / s.memory.total) * 100 : 0;
+      $('mem-used').textContent = fmtGB(s.memory.used);
+      $('mem-total').textContent = fmtGB(s.memory.total);
+      $('mem-pct').textContent = memPct.toFixed(1) + '%';
+      $('mem-meter').style.width = clamp(memPct, 0, 100) + '%';
+      $('mem-cache').textContent = '缓存 ' + fmtGB(s.memory.cached) + 'G';
+      $('mem-avail').textContent = '可用 ' + fmtGB(s.memory.available) + 'G';
+    }
+
+    // 页脚
+    if (state.updatedAt) {
+      var t = new Date(state.updatedAt);
+      $('foot').textContent = '数据 ' + pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds()) +
+        ' · ' + (state.durationMs ? (state.durationMs / 1000).toFixed(2) + 's' : '—');
+    } else {
+      $('foot').textContent = '等待数据…';
+    }
+
+    renderStatusBar();
+  }
+
+  function renderStatusBar() {
+    var s = state.snapshot;
+    var text, tip;
+    if (state.status === 'ok' && s) {
+      text = vramTotal(s);
+      tip = 'Easy GPU · ' + summaryText(s) + '\n点击打开监控';
+    } else if (state.status === 'connecting') {
+      text = '连接中…';
+      tip = 'Easy GPU · 连接中…\n点击打开监控';
+    } else if (state.status === 'error') {
+      text = '连接失败';
+      tip = 'Easy GPU · 连接失败：' + (state.error || '未知错误') + '\n点击打开监控';
+    } else {
+      text = '未连接';
+      tip = 'Easy GPU · 未连接\n点击打开监控';
+    }
+    $('sb-text').textContent = text;
+    $('sb-tooltip').textContent = tip;
+  }
+
+  // ---------------- toast ----------------
+  var toastTimer = null;
+  function toast(msg) {
+    var node = $('toast');
+    node.textContent = msg;
+    node.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { node.classList.remove('show'); }, 1800);
+  }
+
+  // ---------------- 交互 ----------------
+  $('btn-refresh').addEventListener('click', function () {
+    toast('立即刷新');
+    cycle();
+  });
+
+  $('btn-settings').addEventListener('click', function () {
+    $('sidebar').classList.add('sheet-open');
+  });
+
+  function closeSheet() { $('sidebar').classList.remove('sheet-open'); }
+  $('btn-sheet-close').addEventListener('click', closeSheet);
+  $('sheet-backdrop').addEventListener('click', closeSheet);
+
+  // 合并进程开关
+  $('btn-merge').addEventListener('click', function () {
+    config.mergeProcesses = !config.mergeProcesses;
+    $('btn-merge').classList.toggle('on', config.mergeProcesses);
+    if (state.snapshot) {
+      state.snapshot.gpus.forEach(function (gpu) {
+        var card = gpuCards[String(gpu.index)];
+        if (card) renderProcs(card, gpu);
+      });
+    }
+    toast(config.mergeProcesses ? '合并进程：开' : '合并进程：关');
+  });
+
+  // 刷新间隔 chips
+  $('interval-chips').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    config.refreshInterval = Number(chip.dataset.iv);
+    Array.prototype.forEach.call($('interval-chips').children, function (c) {
+      c.classList.toggle('on', c === chip);
+    });
+    $('interval-label').textContent = config.refreshInterval + 's';
+  });
+
+  // 颜色 swatches
+  $('swatches').addEventListener('click', function (e) {
+    var sw = e.target.closest('.swatch');
+    if (!sw) return;
+    config.accentColor = sw.dataset.c;
+    document.body.setAttribute('data-color', config.accentColor);
+    Array.prototype.forEach.call($('swatches').children, function (c) {
+      c.classList.toggle('on', c === sw);
+    });
+    drawChart();
+  });
+
+  $('more-row').addEventListener('click', function () {
+    closeSheet();
+    toast('更多设置 → 打开 VS Code 设置（easy-gpu）');
+  });
+
+  $('sb-item').addEventListener('click', function () {
+    toast('点击状态栏 → 展开侧边栏「监控」视图');
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.banner .link')) toast('新建连接向导');
+  });
+
+  window.addEventListener('resize', drawChart);
+
+  // ---------------- 演示数据循环 ----------------
+  function pushHistory(s) {
+    var cpu = typeof s.cpu.usage === 'number' ? s.cpu.usage : null;
+    history.push({ cpu: cpu, t: Date.now() });
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+
+  var cycleTimer = null;
+
+  function applySnapshot(s) {
+    state.snapshot = s;
+    state.updatedAt = Date.now();
+    state.durationMs = 700 + Math.round(Math.random() * 500);
+    pushHistory(s);
+    render();
+    drawChart();
+  }
+
+  function cycle() {
+    if (forcedStatus === 'error') {
+      state.status = 'error';
+      state.error = 'ssh: connect to host 192.168.91.253 port 22: Connection timed out';
+      render();
+      return;
+    }
+    if (forcedStatus === 'idle') {
+      state.status = 'idle';
+      state.host = '未配置服务器';
+      state.snapshot = null;
+      render();
+      return;
+    }
+    if (forcedStatus === 'connecting') {
+      state.status = 'connecting';
+      render();
+      return;
+    }
+    // 默认演示：连接中 0.8s → 数据，每 3s 一轮
+    state.status = 'connecting';
+    render();
+    setTimeout(function () {
+      state.status = 'ok';
+      state.host = 'wzszju@gpu-lab';
+      applySnapshot(makeSnapshot());
+    }, 800);
+  }
+
+  // 初始化
+  $('btn-merge').classList.toggle('on', config.mergeProcesses);
+  Array.prototype.forEach.call($('interval-chips').children, function (c) {
+    c.classList.toggle('on', Number(c.dataset.iv) === config.refreshInterval);
+  });
+  $('interval-label').textContent = config.refreshInterval + 's';
+  Array.prototype.forEach.call($('swatches').children, function (c) {
+    c.classList.toggle('on', c.dataset.c === config.accentColor);
+  });
+
+  cycle();
+  if (!forcedStatus) cycleTimer = setInterval(cycle, 3000);
+})();
+</script>
+</body>
+</html>
