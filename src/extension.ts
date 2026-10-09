@@ -6,6 +6,7 @@ import { DashboardPanel } from './panel';
 import { addressPart, profileId, ProfileStore } from './profiles';
 import { MonitorService } from './service';
 import { showSimpleSettings } from './settingsUi';
+import { CapsuleSidebarView } from './sidebarView';
 import { resolveHost, expandHome } from './sshConfig';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -34,8 +35,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     service,
     builtin,
-    vscode.commands.registerCommand('easy-gpu.openDashboard', () => {
-      DashboardPanel.createOrShow(context, service);
+    vscode.window.registerWebviewViewProvider(
+      CapsuleSidebarView.viewId,
+      new CapsuleSidebarView(context, service),
+      { webviewOptions: { retainContextWhenHidden: true } }
+    ),
+    vscode.commands.registerCommand('easy-gpu.openDashboard', (arg?: { view?: 'capsule' | 'window' }) => {
+      DashboardPanel.createOrShow(context, service, arg?.view === 'window' ? 'window' : 'capsule');
       if (!service.profile) {
         void openManager();
       }
@@ -68,6 +74,9 @@ export function activate(context: vscode.ExtensionContext): void {
   void migrateLegacySettings(store, credentials).finally(() => {
     service.start();
   });
+
+  // 启动后自动展开侧边栏「状态胶囊」视图，打开 IDE 即可看到胶囊
+  void vscode.commands.executeCommand('workbench.view.extension.easy-gpu');
 }
 
 export function deactivate(): void {

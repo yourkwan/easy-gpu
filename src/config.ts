@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AccentColor } from './types';
+import { AccentColor, WebviewConfig } from './types';
 
 /** 设置项的集中出口：刷新间隔 / 颜色风格 / 合并进程。 */
 export function config(): vscode.WorkspaceConfiguration {
@@ -22,4 +22,13 @@ export function accentColor(): AccentColor {
 /** 是否把同一用户的多个进程合并为一条（默认不合并，逐个进程显示）。 */
 export function mergeProcesses(): boolean {
   return config().get<boolean>('mergeProcesses', false);
+}
+
+/** Webview 下发用的配置快照（面板与侧边栏共用）。 */
+export function webviewConfig(): WebviewConfig {
+  return {
+    refreshInterval: refreshInterval(),
+    mergeProcesses: mergeProcesses(),
+    accentColor: accentColor()
+  };
 }

@@ -33,6 +33,24 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "easy-gpu",
+          "title": "Easy GPU",
+          "icon": "media/icon-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "easy-gpu": [
+        {
+          "id": "easy-gpu.capsule",
+          "name": "状态胶囊",
+          "type": "webview"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "easy-gpu.openDashboard",

@@ -146,7 +146,7 @@ body {
 }
 
 .island.expanded {
-  width: min(432px, calc(100vw - 32px));
+  width: min(432px, calc(100% - 32px));
   height: 122px;
   border-radius: 26px;
 }
@@ -711,4 +711,39 @@ body.dark .sys-card { box-shadow: none; border: 1px solid var(--sep); }
   font-size: 10px;
   letter-spacing: 0.08em;
   color: var(--fg-3);
+}
+
+/* ---------------- 侧边栏宿主（仅胶囊，紧凑版） ---------------- */
+
+/* 提示语竖排居中 */
+body[data-host="sidebar"] .hint {
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+body[data-host="sidebar"] .wordmark { bottom: 18px; }
+
+/* 长胶囊适配窄栏：摘要允许两行、图标稍紧凑 */
+body[data-host="sidebar"] .island.expanded .long-summary {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+body[data-host="sidebar"] .long-icons { gap: 7px; }
+
+body[data-host="sidebar"] .icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+/* 拖到极窄时图标换行，给长胶囊加高避免裁切 */
+@media (max-width: 205px) {
+  body[data-host="sidebar"] .island.expanded { height: 158px; }
 }

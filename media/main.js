@@ -6,6 +6,10 @@
   var MAX_HISTORY = 90;
   var MAX_PROCESS_CHIPS = 12;
 
+  /** 侧边栏宿主（仅胶囊）与编辑器面板宿主（胶囊页 + 窗口页）共用本脚本 */
+  var isSidebar = document.body.dataset.host === 'sidebar';
+  var initialView = !isSidebar && document.body.dataset.view === 'window' ? 'window' : 'capsule';
+
   var state = { status: 'idle', host: '' };
   var config = { refreshInterval: 5, mergeProcesses: false, accentColor: 'blue' };
   var history = [];
@@ -130,12 +134,16 @@
     $('long-host').textContent = state.host || '未配置服务器';
     $('long-summary').textContent = (state.status === 'ok' && s) ? summaryText(s) : shortText;
 
-    // capsule page hero
-    $('hero-mem').textContent = state.status === 'ok' ? shortText : '——';
-    $('hero-sub').textContent =
-      state.status === 'ok' ? summaryText(s) :
-      state.status === 'connecting' ? '正在连接监控服务器…' :
-      state.status === 'error' ? '连接失败，请在窗口页查看错误详情' : '尚未连接服务器';
+    // capsule page hero（侧边栏无此区块）
+    var heroMem = $('hero-mem');
+    if (heroMem) heroMem.textContent = state.status === 'ok' ? shortText : '——';
+    var heroSub = $('hero-sub');
+    if (heroSub) {
+      heroSub.textContent =
+        state.status === 'ok' ? summaryText(s) :
+        state.status === 'connecting' ? '正在连接监控服务器…' :
+        state.status === 'error' ? '连接失败，请在窗口页查看错误详情' : '尚未连接服务器';
+    }
   }
 
   function summaryText(s) {
@@ -154,6 +162,7 @@
   // ---------------- view switching ----------------
 
   function setView(next) {
+    if (isSidebar) return;
     currentView = next;
     $('view-capsule').classList.toggle('hidden', next !== 'capsule');
     $('view-window').classList.toggle('hidden', next !== 'window');
@@ -495,6 +504,9 @@
       config = message.config || config;
       if (state.snapshot) pushHistory(state.snapshot);
       render();
+    } else if (message.type === 'showView') {
+      // 由扩展控制面板初始/切换视图（如侧边栏胶囊点「窗口」图标）
+      setView(message.view === 'window' ? 'window' : 'capsule');
     }
   });
 
@@ -518,10 +530,15 @@
     vscode.postMessage({ type: 'openSettings' });
   });
   $('btn-window').addEventListener('click', function () {
+    if (isSidebar) {
+      vscode.postMessage({ type: 'openWindow' });
+      return;
+    }
     setView(currentView === 'window' ? 'capsule' : 'window');
   });
 
   setInterval(tickCountdown, 1000);
   applyAccent();
+  if (initialView === 'window') setView('window');
   vscode.postMessage({ type: 'ready' });
 })();
