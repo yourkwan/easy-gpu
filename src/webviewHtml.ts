@@ -32,7 +32,7 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
 
 <div class="content">
   <header class="top">
-    <div style="min-width:0">
+    <div class="top-info">
       <div class="host" id="host">未配置服务器</div>
       <div class="status"><span class="dot"></span><span id="status-text">未连接</span></div>
     </div>
@@ -65,7 +65,7 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
       <div class="sys-card">
         <div class="sys-top">
           <span class="label">CPU</span>
-          <span class="num" id="cpu-cores" style="font-size:10px;color:var(--fg-3)"></span>
+          <span class="num sys-sub" id="cpu-cores"></span>
         </div>
         <div class="sys-big num"><span id="cpu-value">—</span><small>%</small></div>
         <canvas class="cpu-chart" id="cpu-chart"></canvas>
@@ -73,10 +73,10 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
       <div class="sys-card">
         <div class="sys-top">
           <span class="label">内存</span>
-          <span class="num" id="mem-pct" style="font-size:10px;color:var(--fg-3)"></span>
+          <span class="num sys-sub" id="mem-pct"></span>
         </div>
         <div class="sys-big num"><span id="mem-used">—</span><small>GB / <span id="mem-total">—</span> GB</small></div>
-        <div class="meter"><i id="mem-meter" style="width:0%"></i></div>
+        <div class="meter"><i id="mem-meter"></i></div>
         <div class="sys-meta">
           <span id="mem-cache"></span>
           <span id="mem-avail"></span>
@@ -111,13 +111,13 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
   <div class="sheet-row">
     <div class="row-label">颜色风格</div>
     <div class="swatches" id="swatches">
-      <button class="swatch on" data-c="blue"   style="background:#0a84ff" title="蓝"></button>
-      <button class="swatch" data-c="cyan"   style="background:#64d2ff" title="青"></button>
-      <button class="swatch" data-c="green"  style="background:#30d158" title="绿"></button>
-      <button class="swatch" data-c="purple" style="background:#bf5af2" title="紫"></button>
-      <button class="swatch" data-c="pink"   style="background:#ff375f" title="粉"></button>
-      <button class="swatch" data-c="orange" style="background:#ff9f0a" title="橙"></button>
-      <button class="swatch" data-c="red"    style="background:#ff453a" title="红"></button>
+      <button class="swatch on" data-c="blue"   title="蓝"></button>
+      <button class="swatch" data-c="cyan"   title="青"></button>
+      <button class="swatch" data-c="green"  title="绿"></button>
+      <button class="swatch" data-c="purple" title="紫"></button>
+      <button class="swatch" data-c="pink"   title="粉"></button>
+      <button class="swatch" data-c="orange" title="橙"></button>
+      <button class="swatch" data-c="red"    title="红"></button>
     </div>
   </div>
   <div class="more-row" id="more-row">

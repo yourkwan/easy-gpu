@@ -115,6 +115,7 @@ body {
 .content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 14px 20px; }
 
 .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.top-info { min-width: 0; }
 
 .host {
   font-size: 15px;
@@ -324,6 +325,7 @@ body:not(.vscode-dark):not(.dark):not(.vscode-high-contrast) .gcard { box-shadow
 
 .meter i {
   display: block;
+  width: 0;
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
@@ -382,6 +384,7 @@ body.vscode-light .sys-card,
 body:not(.vscode-dark):not(.dark):not(.vscode-high-contrast) .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
 
 .sys-top { display: flex; align-items: baseline; justify-content: space-between; }
+.sys-sub { font-size: 10px; color: var(--fg-3); }
 
 .sys-big {
   font-family: var(--mono);
@@ -523,6 +526,15 @@ body.server-open #server-sheet { transform: translateY(0); }
 
 .swatch:active { transform: scale(0.88); }
 .swatch.on { box-shadow: 0 0 0 2px var(--elev), 0 0 0 4px var(--fg-2); }
+
+/* 色块颜色放在 CSS 中：webview CSP 不允许 HTML 内联 style 属性 */
+.swatch[data-c="blue"]   { background: #0a84ff; }
+.swatch[data-c="cyan"]   { background: #64d2ff; }
+.swatch[data-c="green"]  { background: #30d158; }
+.swatch[data-c="purple"] { background: #bf5af2; }
+.swatch[data-c="pink"]   { background: #ff375f; }
+.swatch[data-c="orange"] { background: #ff9f0a; }
+.swatch[data-c="red"]    { background: #ff453a; }
 
 .more-row {
   display: flex;
