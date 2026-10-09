@@ -3,7 +3,6 @@
 **/*.ts
 **/*.map
 dev/**
-scripts/**
 .trae/**
 .uploads/**
 **/*.vsix

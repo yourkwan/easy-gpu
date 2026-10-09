@@ -230,8 +230,11 @@ body:not(.vscode-dark):not(.dark):not(.vscode-high-contrast) .gcard { box-shadow
   flex: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 19px;
-  padding: 0 8px;
+  /* padding-top 光学补偿：CJK 度量字体墨迹偏上，垫 3px 让文字视觉居中 */
+  padding: 3px 8px 0;
+  line-height: 1;
   border-radius: 6px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -339,11 +342,10 @@ body:not(.vscode-dark):not(.dark):not(.vscode-high-contrast) .gcard { box-shadow
 
 .gcard.collapsed .procs { display: none; }
 
+/* 文字与数字共用一行基线 + 行高=高度 垂直居中（跨字体不跑偏） */
 .proc {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   height: 24px;
+  line-height: 24px;
   padding: 0 10px;
   border-radius: 8px;
   background: var(--track);
@@ -351,7 +353,7 @@ body:not(.vscode-dark):not(.dark):not(.vscode-high-contrast) .gcard { box-shadow
   white-space: nowrap;
 }
 
-.proc b { font-weight: 600; }
+.proc b { font-weight: 600; margin-right: 6px; }
 
 .proc span {
   font-family: var(--mono);
