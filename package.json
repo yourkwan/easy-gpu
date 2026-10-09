@@ -45,18 +45,13 @@
     "views": {
       "easy-gpu": [
         {
-          "id": "easy-gpu.capsule",
-          "name": "状态胶囊",
+          "id": "easy-gpu.monitor",
+          "name": "监控",
           "type": "webview"
         }
       ]
     },
     "commands": [
-      {
-        "command": "easy-gpu.openDashboard",
-        "title": "打开监控面板",
-        "category": "Easy GPU"
-      },
       {
         "command": "easy-gpu.connect",
         "title": "新建连接（输入服务器地址与用户名）",
@@ -83,7 +78,7 @@
       "properties": {
         "easy-gpu.refreshInterval": {
           "type": "number",
-          "default": 5,
+          "default": 10,
           "minimum": 2,
           "maximum": 600,
           "markdownDescription": "自动刷新间隔（秒）：一次刷新结束后再等这么久开始下一次。"

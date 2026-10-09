@@ -1,98 +1,13 @@
 import * as vscode from 'vscode';
 
-/** webview 宿主：panel = 编辑器监控面板（双视图）；sidebar = 侧边栏状态胶囊。 */
-export type WebviewHost = 'panel' | 'sidebar';
-
 export interface WebviewHtmlOptions {
   webview: vscode.Webview;
   extensionUri: vscode.Uri;
-  host: WebviewHost;
-  /** 面板初始视图（仅 panel 生效），默认胶囊页。 */
-  initialView?: 'capsule' | 'window';
 }
 
-/** 悬浮胶囊（灵动岛）：两处宿主共用，仅「窗口」按钮的提示文案不同。 */
-function islandHtml(host: WebviewHost): string {
-  const windowTitle = host === 'sidebar' ? '打开监控面板' : '打开窗口页面';
-  return `<!-- 悬浮胶囊（灵动岛） -->
-<div class="island" id="island" role="button" tabindex="0" aria-label="状态胶囊，点击展开或收起">
-  <div class="island-short">
-    <span class="dot idle" id="dot"></span>
-    <span class="short-text" id="short-text">未连接</span>
-  </div>
-  <div class="island-long">
-    <div class="long-head">
-      <span class="host" id="long-host">未配置服务器</span>
-      <span class="count" id="countdown"></span>
-    </div>
-    <div class="long-summary" id="long-summary">--</div>
-    <div class="long-icons">
-      <button class="icon-btn" id="btn-host" title="切换服务器" aria-label="切换服务器">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="7" rx="2"/><rect x="2" y="13" width="20" height="7" rx="2"/><path d="M6 7.5h.01M6 16.5h.01"/></svg>
-      </button>
-      <button class="icon-btn" id="btn-refresh" title="立即刷新" aria-label="立即刷新">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-      </button>
-      <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
-      </button>
-      <button class="icon-btn window" id="btn-window" title="${windowTitle}" aria-label="${windowTitle}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-      </button>
-    </div>
-  </div>
-</div>`;
-}
-
-/** 胶囊页：面板（含显存 hero）与侧边栏（极简提示）两种形态。 */
-function capsulePageHtml(host: WebviewHost): string {
-  const hint = host === 'sidebar'
-    ? `  <div class="hint">
-    <span><b>点击胶囊</b> 展开 / 收起</span>
-    <span><b>窗口图标</b> 打开监控面板</span>
-  </div>`
-    : `  <div class="capsule-hero">
-    <div class="kicker">Easy GPU</div>
-    <h2 class="headline">显存 <span class="num" id="hero-mem">——</span></h2>
-    <p class="sub" id="hero-sub">尚未连接服务器</p>
-  </div>
-  <div class="hint">
-    <span><b>点击胶囊</b> 展开 / 收起</span>
-    <span><b>蓝色图标</b> 进入窗口页</span>
-  </div>`;
-
-  return `<!-- 胶囊页（默认视图） -->
-<section class="view view-capsule" id="view-capsule">
-  <div class="ambient"></div>
-${hint}
-  <div class="wordmark">Easy GPU</div>
-</section>`;
-}
-
-const WINDOW_PAGE = `<!-- 窗口页（监控详情） -->
-<section class="view view-window hidden" id="view-window">
-  <header class="win-head">
-    <h1 id="win-host">未配置服务器</h1>
-    <div class="head-row">
-      <span class="badge idle" id="win-badge"><span class="dot idle"></span><span id="win-badge-text">未连接</span></span>
-      <span class="diag" id="win-diag"></span>
-    </div>
-  </header>
-  <div class="banner hidden" id="banner"></div>
-  <section class="group">
-    <div class="group-label">GPU</div>
-    <div class="gpu-list" id="gpu-list"></div>
-  </section>
-  <section class="group">
-    <div class="group-label">系统</div>
-    <div class="sys-grid" id="sys-grid"></div>
-  </section>
-  <footer class="foot" id="foot">等待数据…</footer>
-</section>`;
-
-/** 生成 webview HTML 骨架（编辑器面板 / 侧边栏共用，media/main.css + main.js 驱动）。 */
+/** 侧边栏监控页 HTML 骨架（media/main.css + main.js 驱动）。 */
 export function buildWebviewHtml(options: WebviewHtmlOptions): string {
-  const { webview, extensionUri, host } = options;
+  const { webview, extensionUri } = options;
   const nonce = createNonce();
   const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.css'));
   const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -104,10 +19,6 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
     `script-src 'nonce-${nonce}'`
   ].join('; ');
 
-  const bodyHost = host === 'sidebar' ? ' data-host="sidebar"' : '';
-  const bodyView = host === 'panel' && options.initialView === 'window' ? ' data-view="window"' : '';
-  const windowPage = host === 'panel' ? `\n${WINDOW_PAGE}\n` : '\n';
-
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -117,12 +28,121 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
 <link href="${cssUri}" rel="stylesheet">
 <title>Easy GPU</title>
 </head>
-<body data-color="blue"${bodyHost}${bodyView}>
+<body data-color="blue" data-status="idle">
 
-${islandHtml(host)}
+<div class="content">
+  <header class="top">
+    <div style="min-width:0">
+      <div class="host" id="host">未配置服务器</div>
+      <div class="status"><span class="dot"></span><span id="status-text">未连接</span></div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btn-refresh" title="立即刷新" aria-label="立即刷新">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+      </button>
+    </div>
+  </header>
 
-${capsulePageHtml(host)}
-${windowPage}
+  <div class="banner hidden" id="banner"></div>
+
+  <section class="group">
+    <div class="group-head">
+      <span class="label">GPU</span>
+      <div class="head-actions">
+        <button class="pill" id="btn-servers">选择服务器</button>
+        <button class="pill" id="btn-merge" title="把同一用户的多个进程合并为一条显示">合并进程</button>
+      </div>
+    </div>
+    <div class="gpu-list" id="gpu-list"></div>
+  </section>
+
+  <section class="group">
+    <div class="group-head"><span class="label">系统</span></div>
+    <div class="sys-grid">
+      <div class="sys-card">
+        <div class="sys-top">
+          <span class="label">CPU</span>
+          <span class="num" id="cpu-cores" style="font-size:10px;color:var(--fg-3)"></span>
+        </div>
+        <div class="sys-big num"><span id="cpu-value">—</span><small>%</small></div>
+        <canvas class="cpu-chart" id="cpu-chart"></canvas>
+      </div>
+      <div class="sys-card">
+        <div class="sys-top">
+          <span class="label">内存</span>
+          <span class="num" id="mem-pct" style="font-size:10px;color:var(--fg-3)"></span>
+        </div>
+        <div class="sys-big num"><span id="mem-used">—</span><small>GB / <span id="mem-total">—</span> GB</small></div>
+        <div class="meter"><i id="mem-meter" style="width:0%"></i></div>
+        <div class="sys-meta">
+          <span id="mem-cache"></span>
+          <span id="mem-avail"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot" id="foot">等待数据…</footer>
+</div>
+
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+
+<!-- 设置 sheet -->
+<div class="sheet" id="sheet">
+  <div class="sheet-head">
+    <div class="sheet-title">设置</div>
+    <button class="icon-btn" id="btn-sheet-close" title="关闭" aria-label="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="sheet-row">
+    <div class="row-label">刷新间隔 · <span class="num" id="interval-label">10s</span></div>
+    <div class="chips" id="interval-chips">
+      <button class="chip" data-iv="5">5s</button>
+      <button class="chip on" data-iv="10">10s</button>
+      <button class="chip" data-iv="30">30s</button>
+      <button class="chip" data-iv="60">60s</button>
+      <input class="chip-input" id="interval-custom" type="number" min="2" max="600" placeholder="自定义">
+    </div>
+  </div>
+  <div class="sheet-row">
+    <div class="row-label">颜色风格</div>
+    <div class="swatches" id="swatches">
+      <button class="swatch on" data-c="blue"   style="background:#0a84ff" title="蓝"></button>
+      <button class="swatch" data-c="cyan"   style="background:#64d2ff" title="青"></button>
+      <button class="swatch" data-c="green"  style="background:#30d158" title="绿"></button>
+      <button class="swatch" data-c="purple" style="background:#bf5af2" title="紫"></button>
+      <button class="swatch" data-c="pink"   style="background:#ff375f" title="粉"></button>
+      <button class="swatch" data-c="orange" style="background:#ff9f0a" title="橙"></button>
+      <button class="swatch" data-c="red"    style="background:#ff453a" title="红"></button>
+    </div>
+  </div>
+  <div class="more-row" id="more-row">
+    <span>更多设置</span>
+    <span class="arrow">›</span>
+  </div>
+</div>
+
+<!-- 选择服务器 sheet -->
+<div class="sheet" id="server-sheet">
+  <div class="sheet-head">
+    <div class="sheet-title">选择服务器</div>
+    <button class="icon-btn" id="btn-server-close" title="关闭" aria-label="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="server-list" id="server-list"></div>
+  <div class="more-row" id="server-add">
+    <span>新建连接</span>
+    <span class="arrow">›</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script nonce="${nonce}" src="${jsUri}"></script>
 </body>
 </html>`;

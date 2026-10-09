@@ -6,17 +6,11 @@
   var MAX_HISTORY = 90;
   var MAX_PROCESS_CHIPS = 12;
 
-  /** 侧边栏宿主（仅胶囊）与编辑器面板宿主（胶囊页 + 窗口页）共用本脚本 */
-  var isSidebar = document.body.dataset.host === 'sidebar';
-  var initialView = !isSidebar && document.body.dataset.view === 'window' ? 'window' : 'capsule';
-
   var state = { status: 'idle', host: '' };
-  var config = { refreshInterval: 5, mergeProcesses: false, accentColor: 'blue' };
+  var config = { refreshInterval: 10, mergeProcesses: false, accentColor: 'blue' };
+  var profiles = [];
   var history = [];
   var lastSampleKey = '';
-  var skeletonBuilt = false;
-  var currentView = 'capsule';
-
   var gpuCards = {};
   var refs = {};
 
@@ -35,7 +29,7 @@
     return Math.min(max, Math.max(min, v));
   }
 
-  /** bytes → GB 字符串（系统内存用 bytes，GPU 显存用 MB 需先 ×1024×1024） */
+  /** bytes → GB（系统内存 bytes；GPU 显存 MB 需先 ×1024×1024） */
   function fmtGB(bytes, digits) {
     var gb = (bytes || 0) / 1024 / 1024 / 1024;
     var d = digits === undefined ? (gb >= 100 ? 0 : gb >= 10 ? 1 : 2) : digits;
@@ -44,20 +38,6 @@
 
   function pctText(value) {
     return typeof value === 'number' && isFinite(value) ? Math.round(value) + '%' : '—';
-  }
-
-  function tempState(temp) {
-    if (typeof temp !== 'number') return '';
-    if (temp >= 80) return 'hot';
-    if (temp >= 65) return 'warm';
-    return '';
-  }
-
-  function utilState(util) {
-    if (typeof util !== 'number') return '';
-    if (util >= 98) return 'hot';
-    if (util >= 90) return 'warm';
-    return '';
   }
 
   function pad2(value) {
@@ -101,132 +81,15 @@
     });
   }
 
-  // ---------------- accent color ----------------
-
-  function applyAccent() {
-    document.body.setAttribute('data-color', config.accentColor || 'blue');
-  }
-
-  // ---------------- island capsule ----------------
-
-  function toggleIsland() {
-    var island = $('island');
-    island.classList.toggle('expanded');
-    document.body.classList.toggle('island-expanded', island.classList.contains('expanded'));
-  }
-
-  function renderIsland() {
-    var s = state.snapshot;
-    var dot = $('dot');
-    dot.className = 'dot ' + state.status;
-
-    var shortText;
-    if (state.status === 'connecting') shortText = '连接中…';
-    else if (state.status === 'error') shortText = '连接失败';
-    else if (state.status === 'idle' || !s) shortText = '未连接';
-    else {
-      var memTotal = 0, memUsed = 0;
-      s.gpus.forEach(function (g) { memTotal += g.memoryTotal; memUsed += g.memoryUsed; });
-      shortText = fmtGB(memUsed * 1024 * 1024) + '/' + fmtGB(memTotal * 1024 * 1024) + 'G';
-    }
-    $('short-text').textContent = shortText;
-
-    $('long-host').textContent = state.host || '未配置服务器';
-    $('long-summary').textContent = (state.status === 'ok' && s) ? summaryText(s) : shortText;
-
-    // capsule page hero（侧边栏无此区块）
-    var heroMem = $('hero-mem');
-    if (heroMem) heroMem.textContent = state.status === 'ok' ? shortText : '——';
-    var heroSub = $('hero-sub');
-    if (heroSub) {
-      heroSub.textContent =
-        state.status === 'ok' ? summaryText(s) :
-        state.status === 'connecting' ? '正在连接监控服务器…' :
-        state.status === 'error' ? '连接失败，请在窗口页查看错误详情' : '尚未连接服务器';
-    }
-  }
-
-  function summaryText(s) {
-    var memTotal = 0, memUsed = 0, tempMax = 0;
-    s.gpus.forEach(function (g) {
-      memTotal += g.memoryTotal; memUsed += g.memoryUsed;
-      if (g.temperature > tempMax) tempMax = g.temperature;
-    });
-    return 'GPU×' + s.gpus.length +
-      ' 显存 ' + fmtGB(memUsed * 1024 * 1024) + '/' + fmtGB(memTotal * 1024 * 1024) + 'G' +
-      (tempMax ? ' · ' + tempMax + '°C' : '') +
-      ' | CPU ' + (typeof s.cpu.usage === 'number' ? Math.round(s.cpu.usage) : '—') + '%' +
-      ' | RAM ' + fmtGB(s.memory.used) + '/' + fmtGB(s.memory.total) + 'G';
-  }
-
-  // ---------------- view switching ----------------
-
-  function setView(next) {
-    if (isSidebar) return;
-    currentView = next;
-    $('view-capsule').classList.toggle('hidden', next !== 'capsule');
-    $('view-window').classList.toggle('hidden', next !== 'window');
-    if (next === 'window') {
-      buildSkeleton();
-      renderWindowPage();
-      drawChart();
-      window.scrollTo({ top: 0 });
-    }
-  }
-
-  // ---------------- skeleton (window page) ----------------
-
-  function buildSkeleton() {
-    if (skeletonBuilt) return;
-
-    // CPU card
-    var sysGrid = $('sys-grid');
-    var cpuCard = el('div', 'sys-card');
-    cpuCard.innerHTML =
-      '<div class="sys-top">' +
-      '  <span class="sys-label">CPU</span>' +
-      '  <span class="diag" id="cpu-cores"></span>' +
-      '</div>' +
-      '<div class="sys-big num"><span id="cpu-value">—</span><small>%</small></div>' +
-      '<canvas class="cpu-chart" id="cpu-chart"></canvas>';
-    sysGrid.appendChild(cpuCard);
-
-    // Memory card
-    var memCard = el('div', 'sys-card');
-    memCard.innerHTML =
-      '<div class="sys-top">' +
-      '  <span class="sys-label">内存</span>' +
-      '  <span class="diag" id="mem-pct"></span>' +
-      '</div>' +
-      '<div class="sys-big num"><span id="mem-used">—</span><small>GB / <span id="mem-total">—</span> GB</small></div>' +
-      '<div class="meter"><i id="mem-meter" style="width:0%"></i></div>' +
-      '<div class="sys-meta">' +
-      '  <span id="mem-cache"></span>' +
-      '  <span id="mem-avail"></span>' +
-      '</div>';
-    sysGrid.appendChild(memCard);
-
-    refs.cpuValue = $('cpu-value');
-    refs.cpuCores = $('cpu-cores');
-    refs.cpuChart = $('cpu-chart');
-    refs.memUsed = $('mem-used');
-    refs.memTotal = $('mem-total');
-    refs.memPct = $('mem-pct');
-    refs.memMeter = $('mem-meter');
-    refs.memCache = $('mem-cache');
-    refs.memAvail = $('mem-avail');
-
-    skeletonBuilt = true;
-  }
-
-  // ---------------- GPU card ----------------
+  // ---------------- GPU 卡片 ----------------
 
   function buildGpuCard(index) {
     var card = el('article', 'gcard');
     card.title = '点击收起 / 展开用户显存';
     card.innerHTML =
       '<div class="gcard-head">' +
-        '<div><span class="gpu-id">GPU <i class="num">' + index + '</i></span><span class="gpu-name"></span></div>' +
+        '<span class="gpu-id">GPU ' + index + '</span>' +
+        '<span class="gpu-name"></span>' +
         '<div class="gpu-metrics">' +
           '<div class="metric"><span class="m-label">Temp</span><span class="m-value" data-f="temp">--</span></div>' +
           '<div class="metric"><span class="m-label">Util</span><span class="m-value" data-f="util">--</span></div>' +
@@ -234,9 +97,9 @@
         '</div>' +
       '</div>' +
       '<div class="vram-row">' +
-        '<span class="vram-used num" data-f="used">--</span>' +
+        '<span class="vram-used" data-f="used">--</span>' +
         '<span class="vram-unit" data-f="unit">GB</span>' +
-        '<span class="vram-pct num" data-f="pct">--</span>' +
+        '<span class="vram-pct" data-f="pct">--</span>' +
       '</div>' +
       '<div class="meter"><i data-f="meter"></i></div>' +
       '<div class="procs" data-f="procs"></div>';
@@ -258,22 +121,7 @@
     };
   }
 
-  function updateGpuCard(card, gpu) {
-    card.name.textContent = gpu.name || 'GPU';
-    card.name.title = gpu.name || '';
-
-    card.temp.textContent = typeof gpu.temperature === 'number' ? gpu.temperature + '°C' : '—';
-    card.temp.className = 'm-value' + (gpu.temperature >= 80 ? ' hot' : gpu.temperature >= 65 ? ' warm' : '');
-
-    card.util.textContent = pctText(gpu.utilization);
-    card.util.className = 'm-value' + (gpu.utilization >= 98 ? ' hot' : gpu.utilization >= 90 ? ' warm' : '');
-
-    card.used.textContent = fmtGB((gpu.memoryUsed || 0) * 1024 * 1024);
-    card.unit.textContent = 'GB / ' + fmtGB((gpu.memoryTotal || 0) * 1024 * 1024) + ' GB';
-    var pct = gpu.memoryTotal > 0 ? Math.round((gpu.memoryUsed / gpu.memoryTotal) * 100) : 0;
-    card.pct.textContent = pct + '%';
-    card.meter.style.width = clamp(pct, 0, 100) + '%';
-
+  function renderProcs(card, gpu) {
     var procs = sortProcesses(gpu.processes);
     card.procs.innerHTML = '';
     if (!procs.length) {
@@ -316,98 +164,26 @@
     }
   }
 
-  // ---------------- window page rendering ----------------
+  function updateGpuCard(card, gpu) {
+    card.name.textContent = gpu.name || 'GPU';
+    card.name.title = gpu.name || '';
 
-  function renderWindowPage() {
-    var s = state.snapshot;
+    card.temp.textContent = typeof gpu.temperature === 'number' ? gpu.temperature + '°C' : '—';
+    card.temp.className = 'm-value' + (gpu.temperature >= 80 ? ' hot' : gpu.temperature >= 65 ? ' warm' : '');
 
-    $('win-host').textContent = state.host || '未配置服务器';
+    card.util.textContent = pctText(gpu.utilization);
+    card.util.className = 'm-value' + (gpu.utilization >= 98 ? ' hot' : gpu.utilization >= 90 ? ' warm' : '');
 
-    var badge = $('win-badge');
-    var badgeText =
-      state.status === 'ok' ? '已连接' :
-      state.status === 'connecting' ? '连接中…' :
-      state.status === 'error' ? '连接失败' : '未连接';
-    $('win-badge-text').textContent = badgeText;
-    badge.className = 'badge' + (state.status === 'error' ? ' error' : state.status === 'idle' ? ' idle' : '');
-    badge.querySelector('.dot').className = 'dot ' + state.status;
+    card.used.textContent = fmtGB((gpu.memoryUsed || 0) * 1024 * 1024);
+    card.unit.textContent = 'GB / ' + fmtGB((gpu.memoryTotal || 0) * 1024 * 1024) + ' GB';
+    var pct = gpu.memoryTotal > 0 ? Math.round((gpu.memoryUsed / gpu.memoryTotal) * 100) : 0;
+    card.pct.textContent = pct + '%';
+    card.meter.style.width = clamp(pct, 0, 100) + '%';
 
-    var diagText = '';
-    if (state.channel) {
-      diagText = (state.channel === 'builtin' ? '内置客户端' : '系统 ssh');
-    }
-    if (state.durationMs) {
-      diagText += (diagText ? ' · ' : '') + '刷新耗时 ' + (state.durationMs / 1000).toFixed(2) + 's';
-    }
-    $('win-diag').textContent = diagText;
-
-    // banner
-    var banner = $('banner');
-    if (state.status === 'error') {
-      banner.classList.remove('hidden');
-      banner.textContent = '连接失败：' + (state.error || '未知错误');
-    } else if (!state.host) {
-      banner.classList.remove('hidden');
-      banner.textContent = '尚未添加服务器，点击胶囊「切换服务器」开始。';
-    } else if (s && !s.nvidiaSmi) {
-      banner.classList.remove('hidden');
-      banner.textContent = '远程服务器未检测到 nvidia-smi：可能没有 NVIDIA 驱动或无执行权限。';
-    } else {
-      banner.classList.add('hidden');
-    }
-
-    if (!s) return;
-
-    // GPU list
-    var list = $('gpu-list');
-    var gpus = s.gpus || [];
-    var seen = {};
-    gpus.forEach(function (gpu) {
-      var key = String(gpu.index);
-      seen[key] = true;
-      var card = gpuCards[key];
-      if (!card) {
-        card = buildGpuCard(gpu.index);
-        gpuCards[key] = card;
-      }
-      updateGpuCard(card, gpu);
-      if (card.el.parentNode !== list) list.appendChild(card.el);
-    });
-    Object.keys(gpuCards).forEach(function (key) {
-      if (!seen[key]) {
-        if (gpuCards[key].el.parentNode) gpuCards[key].el.remove();
-        delete gpuCards[key];
-      }
-    });
-
-    // CPU
-    var cpu = s.cpu || {};
-    refs.cpuValue.textContent = (cpu.usage === null || cpu.usage === undefined) ? '—' : Math.round(cpu.usage);
-    refs.cpuCores.textContent = cpu.cores ? cpu.cores + ' 核' : '';
-    if (cpu.model) refs.cpuCores.title = cpu.model;
-
-    // Memory
-    var mem = s.memory || {};
-    refs.memUsed.textContent = fmtGB(mem.used);
-    refs.memTotal.textContent = fmtGB(mem.total);
-    var memPct = mem.total > 0 ? (mem.used / mem.total) * 100 : 0;
-    refs.memPct.textContent = memPct.toFixed(1) + '%';
-    refs.memMeter.style.width = clamp(memPct, 0, 100) + '%';
-    refs.memCache.textContent = '缓存 ' + fmtGB(mem.cached) + 'G';
-    refs.memAvail.textContent = '可用 ' + fmtGB(mem.available) + 'G';
-
-    // Footer
-    var foot = $('foot');
-    if (state.updatedAt) {
-      var t = new Date(state.updatedAt);
-      var hh = pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds());
-      foot.textContent = '数据 ' + hh + ' · 刷新耗时 ' + (state.durationMs ? (state.durationMs / 1000).toFixed(2) + 's' : '—') + ' · Easy GPU';
-    } else {
-      foot.textContent = '等待数据…';
-    }
+    renderProcs(card, gpu);
   }
 
-  // ---------------- history & chart ----------------
+  // ---------------- CPU 曲线 ----------------
 
   function pushHistory(snapshot) {
     var key = String(snapshot.timestamp) + '|' + String(state.updatedAt || '');
@@ -469,76 +245,277 @@
     ctx.fill();
   }
 
-  // ---------------- countdown ----------------
+  // ---------------- 渲染 ----------------
 
-  function tickCountdown() {
-    var node = $('countdown');
-    if (!node) return;
-    if (!state.host) { node.textContent = ''; return; }
-    if (state.status === 'connecting') { node.textContent = '刷新中'; return; }
-    if (!state.updatedAt) { node.textContent = ''; return; }
-    var next = state.updatedAt + config.refreshInterval * 1000;
-    var remain = Math.max(0, Math.ceil((next - Date.now()) / 1000));
-    node.textContent = remain > 0 ? remain + 's 后刷新' : '即将刷新';
+  function vramTotal(s) {
+    var used = 0, total = 0;
+    s.gpus.forEach(function (g) { used += g.memoryUsed; total += g.memoryTotal; });
+    return fmtGB(used * 1024 * 1024) + '/' + fmtGB(total * 1024 * 1024) + 'G';
   }
-
-  // ---------------- main render ----------------
 
   function render() {
-    applyAccent();
-    renderIsland();
-    if (currentView === 'window') {
-      buildSkeleton();
-      renderWindowPage();
-      drawChart();
+    document.body.setAttribute('data-color', config.accentColor || 'blue');
+    document.body.setAttribute('data-status', state.status);
+
+    // 头部
+    $('host').textContent = state.host || '未配置服务器';
+    $('status-text').textContent =
+      state.status === 'ok' ? '已连接' :
+      state.status === 'connecting' ? '连接中…' :
+      state.status === 'error' ? '连接失败' : '未连接';
+
+    // banner
+    var banner = $('banner');
+    if (state.status === 'error') {
+      banner.className = 'banner err';
+      banner.innerHTML = '连接失败：' + (state.error || '未知错误') + '　<span class="link">新建连接</span>';
+    } else if (!state.host) {
+      banner.className = 'banner info';
+      banner.innerHTML = '尚未添加服务器，点击<span class="link">新建连接</span>开始。';
+    } else {
+      banner.className = 'banner hidden';
     }
-    tickCountdown();
+
+    var s = state.snapshot;
+    if (s) {
+      if (!s.nvidiaSmi) {
+        banner.className = 'banner info';
+        banner.textContent = '远程服务器未检测到 nvidia-smi：可能没有 NVIDIA 驱动或无执行权限。';
+      }
+
+      // GPU 卡片（缓存增删）
+      var list = $('gpu-list');
+      var seen = {};
+      s.gpus.forEach(function (gpu) {
+        var key = String(gpu.index);
+        seen[key] = true;
+        var card = gpuCards[key];
+        if (!card) {
+          card = buildGpuCard(gpu.index);
+          gpuCards[key] = card;
+        }
+        updateGpuCard(card, gpu);
+        if (card.el.parentNode !== list) list.appendChild(card.el);
+      });
+      Object.keys(gpuCards).forEach(function (key) {
+        if (!seen[key]) {
+          if (gpuCards[key].el.parentNode) gpuCards[key].el.remove();
+          delete gpuCards[key];
+        }
+      });
+
+      // 系统
+      var cpu = s.cpu || {};
+      refs.cpuValue.textContent = (cpu.usage === null || cpu.usage === undefined) ? '—' : Math.round(cpu.usage);
+      refs.cpuCores.textContent = cpu.cores ? cpu.cores + ' 核' : '';
+      if (cpu.model) refs.cpuCores.title = cpu.model;
+
+      var mem = s.memory || {};
+      refs.memUsed.textContent = fmtGB(mem.used);
+      refs.memTotal.textContent = fmtGB(mem.total);
+      var memPct = mem.total > 0 ? (mem.used / mem.total) * 100 : 0;
+      refs.memPct.textContent = memPct.toFixed(1) + '%';
+      refs.memMeter.style.width = clamp(memPct, 0, 100) + '%';
+      refs.memCache.textContent = '缓存 ' + fmtGB(mem.cached) + 'G';
+      refs.memAvail.textContent = '可用 ' + fmtGB(mem.available) + 'G';
+    }
+
+    // 页脚
+    if (state.updatedAt) {
+      var t = new Date(state.updatedAt);
+      $('foot').textContent = '数据 ' + pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds()) +
+        ' · ' + (state.durationMs ? (state.durationMs / 1000).toFixed(2) + 's' : '—');
+    } else {
+      $('foot').textContent = '等待数据…';
+    }
+
+    // 合并开关与配置回显
+    $('btn-merge').classList.toggle('on', Boolean(config.mergeProcesses));
+    syncIntervalUI();
   }
 
-  // ---------------- events ----------------
+  // ---------------- toast ----------------
+
+  var toastTimer = null;
+  function toast(msg) {
+    var node = $('toast');
+    node.textContent = msg;
+    node.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { node.classList.remove('show'); }, 1800);
+  }
+
+  // ---------------- 设置 sheet ----------------
+
+  var PRESETS = [5, 10, 30, 60];
+
+  function applyInterval(value) {
+    config.refreshInterval = value;
+    syncIntervalUI();
+  }
+
+  function syncIntervalUI() {
+    var value = config.refreshInterval;
+    $('interval-label').textContent = value + 's';
+    var isPreset = PRESETS.indexOf(value) !== -1;
+    Array.prototype.forEach.call($('interval-chips').querySelectorAll('.chip'), function (c) {
+      c.classList.toggle('on', Number(c.dataset.iv) === value);
+    });
+    var input = $('interval-custom');
+    input.classList.toggle('on', !isPreset);
+    if (document.activeElement !== input) {
+      input.value = isPreset ? '' : value;
+    }
+  }
+
+  function closeSheets() {
+    document.body.classList.remove('sheet-open', 'server-open');
+  }
+
+  // ---------------- 选择服务器 sheet ----------------
+
+  function renderServerList() {
+    var list = $('server-list');
+    list.innerHTML = '';
+    if (!profiles.length) {
+      list.appendChild(el('div', 'procs-empty', '尚未添加服务器'));
+      return;
+    }
+    profiles.forEach(function (sv) {
+      var row = el('div', 'server-row' + (sv.current ? ' current' : ''));
+      row.innerHTML =
+        '<div class="server-main"><div class="server-name"></div><div class="server-sub"></div></div>' +
+        '<svg class="server-check" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+      row.querySelector('.server-name').textContent = sv.label;
+      row.querySelector('.server-sub').textContent = sv.sub || '';
+      row.addEventListener('click', function () {
+        closeSheets();
+        if (sv.current) return;
+        toast('已切换到 ' + sv.label);
+        vscode.postMessage({ type: 'switchProfile', id: sv.id });
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // ---------------- 骨架 refs ----------------
+
+  function cacheRefs() {
+    refs.cpuValue = $('cpu-value');
+    refs.cpuCores = $('cpu-cores');
+    refs.cpuChart = $('cpu-chart');
+    refs.memUsed = $('mem-used');
+    refs.memTotal = $('mem-total');
+    refs.memPct = $('mem-pct');
+    refs.memMeter = $('mem-meter');
+    refs.memCache = $('mem-cache');
+    refs.memAvail = $('mem-avail');
+  }
+
+  // ---------------- 事件 ----------------
 
   window.addEventListener('message', function (event) {
     var message = event.data || {};
-    if (message.type === 'state') {
-      state = message.state || state;
-      config = message.config || config;
-      if (state.snapshot) pushHistory(state.snapshot);
-      render();
-    } else if (message.type === 'showView') {
-      // 由扩展控制面板初始/切换视图（如侧边栏胶囊点「窗口」图标）
-      setView(message.view === 'window' ? 'window' : 'capsule');
-    }
+    if (message.type !== 'state') return;
+    state = message.state || state;
+    config = message.config || config;
+    if (Array.isArray(message.profiles)) profiles = message.profiles;
+    if (state.snapshot) pushHistory(state.snapshot);
+    render();
+    drawChart();
+    if (document.body.classList.contains('server-open')) renderServerList();
   });
 
   window.addEventListener('resize', function () {
     drawChart();
   });
 
-  // island click (toggle expand/collapse, but not when clicking icon buttons)
-  $('island').addEventListener('click', function (e) {
-    if (e.target.closest('.icon-btn')) return;
-    toggleIsland();
-  });
-
-  $('btn-host').addEventListener('click', function () {
-    vscode.postMessage({ type: 'selectHost' });
-  });
   $('btn-refresh').addEventListener('click', function () {
     vscode.postMessage({ type: 'refresh' });
   });
+
   $('btn-settings').addEventListener('click', function () {
-    vscode.postMessage({ type: 'openSettings' });
-  });
-  $('btn-window').addEventListener('click', function () {
-    if (isSidebar) {
-      vscode.postMessage({ type: 'openWindow' });
-      return;
-    }
-    setView(currentView === 'window' ? 'capsule' : 'window');
+    closeSheets();
+    document.body.classList.add('sheet-open');
   });
 
-  setInterval(tickCountdown, 1000);
-  applyAccent();
-  if (initialView === 'window') setView('window');
+  $('btn-sheet-close').addEventListener('click', closeSheets);
+  $('sheet-backdrop').addEventListener('click', closeSheets);
+
+  $('btn-merge').addEventListener('click', function () {
+    config.mergeProcesses = !config.mergeProcesses;
+    $('btn-merge').classList.toggle('on', config.mergeProcesses);
+    var s = state.snapshot;
+    if (s) {
+      s.gpus.forEach(function (gpu) {
+        var card = gpuCards[String(gpu.index)];
+        if (card) renderProcs(card, gpu);
+      });
+    }
+    toast(config.mergeProcesses ? '合并进程：开' : '合并进程：关');
+    vscode.postMessage({ type: 'updateConfig', key: 'mergeProcesses', value: config.mergeProcesses });
+  });
+
+  $('interval-chips').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    applyInterval(Number(chip.dataset.iv));
+    vscode.postMessage({ type: 'updateConfig', key: 'refreshInterval', value: config.refreshInterval });
+  });
+
+  $('interval-custom').addEventListener('change', function () {
+    var v = Math.round(Number($('interval-custom').value));
+    if (!Number.isFinite(v) || v < 2 || v > 600) {
+      syncIntervalUI();
+      return;
+    }
+    applyInterval(v);
+    vscode.postMessage({ type: 'updateConfig', key: 'refreshInterval', value: v });
+  });
+
+  $('interval-custom').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('interval-custom').blur();
+  });
+
+  $('swatches').addEventListener('click', function (e) {
+    var sw = e.target.closest('.swatch');
+    if (!sw) return;
+    config.accentColor = sw.dataset.c;
+    document.body.setAttribute('data-color', config.accentColor);
+    Array.prototype.forEach.call($('swatches').children, function (c) {
+      c.classList.toggle('on', c === sw);
+    });
+    drawChart();
+    vscode.postMessage({ type: 'updateConfig', key: 'accentColor', value: config.accentColor });
+  });
+
+  $('more-row').addEventListener('click', function () {
+    closeSheets();
+    vscode.postMessage({ type: 'openMoreSettings' });
+  });
+
+  $('btn-servers').addEventListener('click', function () {
+    closeSheets();
+    renderServerList();
+    document.body.classList.add('server-open');
+  });
+
+  $('btn-server-close').addEventListener('click', closeSheets);
+
+  $('server-add').addEventListener('click', function () {
+    closeSheets();
+    vscode.postMessage({ type: 'openConnect' });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.banner .link')) {
+      vscode.postMessage({ type: 'openConnect' });
+    }
+  });
+
+  // ---------------- 启动 ----------------
+
+  cacheRefs();
+  render();
   vscode.postMessage({ type: 'ready' });
 })();

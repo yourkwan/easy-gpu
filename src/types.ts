@@ -67,3 +67,11 @@ export interface WebviewConfig {
   /** 强调色风格 */
   accentColor: AccentColor;
 }
+
+/** 「选择服务器」sheet 的条目 */
+export interface ProfileSummary {
+  id: string;
+  label: string;
+  sub: string;
+  current: boolean;
+}

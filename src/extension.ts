@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import { BuiltinSshTransport } from './builtinSsh';
 import { runConnectWizard, showConnectionManager } from './connectFlow';
 import { HostKeyStoreAdapter, SecretCredentialStore, VsCodeAuthInteraction } from './credentials';
-import { DashboardPanel } from './panel';
 import { addressPart, profileId, ProfileStore } from './profiles';
 import { MonitorService } from './service';
 import { showSimpleSettings } from './settingsUi';
-import { CapsuleSidebarView } from './sidebarView';
+import { MonitorSidebarView } from './sidebarView';
+import { MonitorStatusBar } from './statusbar';
 import { resolveHost, expandHome } from './sshConfig';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -32,25 +32,23 @@ export function activate(context: vscode.ExtensionContext): void {
   const openManager = () => showConnectionManager(deps);
   const connectNew = () => runConnectWizard(deps);
 
+  const sidebarView = new MonitorSidebarView(context, service, store);
+  const statusBar = new MonitorStatusBar(service);
+
   context.subscriptions.push(
     service,
     builtin,
+    statusBar,
     vscode.window.registerWebviewViewProvider(
-      CapsuleSidebarView.viewId,
-      new CapsuleSidebarView(context, service),
+      MonitorSidebarView.viewId,
+      sidebarView,
       { webviewOptions: { retainContextWhenHidden: true } }
     ),
-    vscode.commands.registerCommand('easy-gpu.openDashboard', (arg?: { view?: 'capsule' | 'window' }) => {
-      DashboardPanel.createOrShow(context, service, arg?.view === 'window' ? 'window' : 'capsule');
-      if (!service.profile) {
-        void openManager();
-      }
-    }),
     vscode.commands.registerCommand('easy-gpu.connect', () => connectNew()),
     vscode.commands.registerCommand('easy-gpu.manageConnections', () => openManager()),
     vscode.commands.registerCommand('easy-gpu.openSettings', () =>
       showSimpleSettings(() => {
-        DashboardPanel.notifyConfigChanged();
+        sidebarView.refresh();
       })
     ),
     vscode.commands.registerCommand('easy-gpu.refreshNow', async () => {
@@ -67,7 +65,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.affectsConfiguration('easy-gpu.refreshInterval')) {
         service.start();
       }
-      DashboardPanel.notifyConfigChanged();
+      sidebarView.refresh();
     })
   );
 

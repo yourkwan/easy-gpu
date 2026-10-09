@@ -2,13 +2,20 @@
 (function () {
   'use strict';
 
-  // ?merge=1 可预览「合并同一用户的进程」效果
+  // ?merge=1 可预览「合并同一用户的进程」效果；?color= 走 preview.html 参数
   function mockConfig() {
     return {
-      refreshInterval: 3,
-      mergeProcesses: new URLSearchParams(location.search).get('merge') === '1'
+      refreshInterval: 10,
+      mergeProcesses: new URLSearchParams(location.search).get('merge') === '1',
+      accentColor: new URLSearchParams(location.search).get('color') || 'blue'
     };
   }
+
+  var profiles = [
+    { id: 'lj@192.168.91.253:22', label: 'lj@192.168.91.253', sub: '192.168.91.253 · 密码登录', current: true },
+    { id: 'wzszju@192.168.91.254:22', label: 'wzszju@192.168.91.254', sub: '192.168.91.254 · 私钥 …/id_rsa', current: false },
+    { id: 'admin@10.0.0.8:22', label: 'admin@10.0.0.8', sub: '10.0.0.8 · ssh-agent / 免密', current: false }
+  ];
 
   var jitter = function (base, range) {
     return Math.max(0, Math.min(100, base + (Math.random() - 0.5) * range));
@@ -104,39 +111,64 @@
     };
   }
 
+  function pushState(status, extra) {
+    var state = Object.assign({ status: status, host: 'lj@192.168.91.253' }, extra || {});
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'state',
+          state: state,
+          config: mockConfig(),
+          profiles: profiles
+        }
+      })
+    );
+  }
+
   window.__easyGpuFeed = function () {
     var push = function () {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          data: {
-            type: 'state',
-            state: {
-              status: 'ok',
-              host: 'wzszju@gpu-lab',
-              snapshot: makeSnapshot(),
-              updatedAt: Date.now(),
-              channel: 'builtin',
-              durationMs: 700 + Math.round(Math.random() * 500)
-            },
-            config: mockConfig()
-          }
-        })
-      );
+      pushState('ok', {
+        snapshot: makeSnapshot(),
+        updatedAt: Date.now(),
+        channel: 'builtin',
+        durationMs: 700 + Math.round(Math.random() * 500)
+      });
     };
     // 模拟真实节奏：先进入「刷新中」，0.8 秒后返回数据
     var cycle = function () {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          data: {
-            type: 'state',
-            state: { status: 'connecting', host: 'wzszju@gpu-lab' },
-            config: mockConfig()
-          }
-        })
-      );
+      pushState('connecting');
       setTimeout(push, 800);
     };
     cycle();
     setInterval(cycle, 3000);
+  };
+
+  // 模拟扩展侧配置写入后的 state 回推
+  window.__easyGpuConfigUpdate = function (msg) {
+    if (msg.key === 'mergeProcesses') {
+      mockConfig = (function (prev) {
+        return function () {
+          var c = prev();
+          c.mergeProcesses = msg.value;
+          return c;
+        };
+      })(mockConfig);
+    }
+  };
+
+  // 模拟切换服务器
+  window.__easyGpuSwitchProfile = function (msg) {
+    profiles.forEach(function (p) { p.current = p.id === msg.id; });
+    var current = profiles.find(function (p) { return p.current; });
+    pushState('connecting', { host: current ? current.label : '' });
+    setTimeout(function () {
+      pushState('ok', {
+        host: current ? current.label : '',
+        snapshot: makeSnapshot(),
+        updatedAt: Date.now(),
+        channel: 'builtin',
+        durationMs: 700 + Math.round(Math.random() * 500)
+      });
+    }, 800);
   };
 })();

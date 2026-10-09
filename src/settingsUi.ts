@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { config, mergeProcesses, refreshInterval } from './config';
+import { config, refreshInterval } from './config';
 import { AccentColor } from './types';
 
 interface SettingItem extends vscode.QuickPickItem {
-  key?: 'refreshInterval' | 'accentColor' | 'mergeProcesses' | 'advanced';
+  key?: 'refreshInterval' | 'accentColor' | 'advanced';
 }
 
 const ACCENT_COLORS: { value: AccentColor; label: string }[] = [
@@ -16,7 +16,7 @@ const ACCENT_COLORS: { value: AccentColor; label: string }[] = [
   { value: 'red', label: '红' }
 ];
 
-/** 面板「设置」打开的一处式简洁设置：刷新间隔 / 颜色风格 / 合并进程。 */
+/** 极简 3 项设置：刷新间隔 / 颜色风格 / 更多设置（合并进程在侧边栏页面开关）。 */
 export async function showSimpleSettings(onChange: () => void): Promise<void> {
   const build = (): SettingItem[] => {
     const interval = refreshInterval();
@@ -35,14 +35,7 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
         detail: '强调色：蓝 / 青 / 绿 / 紫 / 粉 / 橙 / 红',
         key: 'accentColor'
       },
-      {
-        label: '合并同一用户的进程',
-        description: mergeProcesses() ? '开（同一用户合计显存）' : '关（每个进程单独显示）',
-        detail: '例如 wzs 的三个进程合并为「wzs 16412M」；默认关闭，与 gpustat 一致',
-        picked: mergeProcesses(),
-        key: 'mergeProcesses'
-      },
-      { label: '在 VS Code 设置中打开', description: '上述三项之外的更多选项', key: 'advanced' }
+      { label: '更多设置', description: '在 VS Code 设置中打开', key: 'advanced' }
     ];
   };
 
@@ -58,7 +51,7 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
     };
 
     quickPick.title = 'Easy GPU 设置';
-    quickPick.placeholder = '回车切换开关；「刷新间隔」回车可直接输入新值';
+    quickPick.placeholder = '「刷新间隔」回车可直接输入新值';
     quickPick.items = build();
     quickPick.ignoreFocusOut = true;
 
@@ -98,8 +91,6 @@ export async function showSimpleSettings(onChange: () => void): Promise<void> {
         });
         if (!picked) return;
         await config().update('accentColor', picked.value, vscode.ConfigurationTarget.Global);
-      } else {
-        await config().update(picked.key, !picked.picked, vscode.ConfigurationTarget.Global);
       }
       onChange();
       quickPick.items = build();

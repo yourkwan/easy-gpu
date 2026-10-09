@@ -8,8 +8,8 @@ export function config(): vscode.WorkspaceConfiguration {
 
 /** 自动刷新间隔（秒），范围 2–600。 */
 export function refreshInterval(): number {
-  const value = config().get<number>('refreshInterval', 5);
-  return Math.min(600, Math.max(2, Number.isFinite(value) ? value : 5));
+  const value = config().get<number>('refreshInterval', 10);
+  return Math.min(600, Math.max(2, Number.isFinite(value) ? value : 10));
 }
 
 /** 强调色风格（默认蓝）。 */
