@@ -207,6 +207,8 @@ body[data-status="error"] .dot { background: var(--err); }
   margin: 0 2px 9px;
 }
 
+.head-actions { display: flex; gap: 7px; }
+
 .label {
   font-size: 9.5px;
   font-weight: 700;
@@ -309,7 +311,7 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
 .gcard.collapsed .gcard-toggle { transform: rotate(-90deg); }
 .gcard-toggle svg { width: 12px; height: 12px; display: block; }
 
-.vram-row { display: flex; align-items: baseline; gap: 7px; margin-top: 11px; }
+.vram-row { display: flex; align-items: center; gap: 7px; margin-top: 11px; }
 
 .vram-used {
   font-family: var(--mono);
@@ -366,7 +368,7 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
 
 .proc {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   height: 24px;
   padding: 0 10px;
@@ -449,7 +451,8 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
   transition: opacity 0.3s ease;
 }
 
-.sidebar.sheet-open .sheet-backdrop { opacity: 1; pointer-events: auto; }
+.sidebar.sheet-open .sheet-backdrop,
+.sidebar.server-open .sheet-backdrop { opacity: 1; pointer-events: auto; }
 
 .sheet {
   position: absolute;
@@ -465,7 +468,46 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
   transition: transform 0.45s var(--ease-ios);
 }
 
-.sidebar.sheet-open .sheet { transform: translateY(0); }
+.sidebar.sheet-open #sheet,
+.sidebar.server-open #server-sheet { transform: translateY(0); }
+
+/* 服务器列表 */
+.server-list { display: flex; flex-direction: column; }
+
+.server-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.server-row:hover { background: var(--track); }
+.server-row + .server-row { margin-top: 2px; }
+
+.server-main { flex: 1; min-width: 0; }
+
+.server-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-sub {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.server-check { flex: none; display: none; color: var(--accent); }
+.server-row.current .server-check { display: block; }
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
 .sheet-title { font-size: 13px; font-weight: 700; }
@@ -481,11 +523,11 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
   margin-bottom: 8px;
 }
 
-.chips { display: flex; gap: 7px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .chip {
   height: 27px;
-  padding: 0 12px;
+  padding: 0 11px;
   border: none;
   border-radius: 9px;
   background: var(--track);
@@ -498,6 +540,31 @@ body.light .sys-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
 }
 
 .chip.on { background: var(--accent); color: #fff; }
+
+/* 自定义刷新间隔 */
+.chip-input {
+  height: 27px;
+  width: 70px;
+  border: 1px dashed var(--sep);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
+.chip-input::placeholder {
+  color: var(--fg-3);
+  font-family: var(--sans);
+  font-weight: 500;
+}
+
+.chip-input:focus { border: 1px solid var(--accent); }
+.chip-input.on { border: 1px solid transparent; background: var(--accent); color: #fff; }
 
 .swatches { display: flex; gap: 9px; }
 
@@ -572,15 +639,15 @@ body[data-status="error"] .sb-dot { background: var(--err); }
   bottom: 32px;
   left: 0;
   z-index: 30;
+  min-width: 218px;
   max-width: 300px;
-  padding: 9px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--sep);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--elev-2);
   color: var(--fg);
   font-size: 11px;
   line-height: 1.55;
-  white-space: pre-line;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   opacity: 0;
   pointer-events: none;
@@ -588,6 +655,53 @@ body[data-status="error"] .sb-dot { background: var(--err); }
 }
 
 .sb-wrap:hover .sb-tooltip { opacity: 1; }
+
+/* tooltip：仅显存 + 每卡进度条 */
+.tip-head {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-bottom: 9px;
+}
+
+.tip-row { display: flex; align-items: center; gap: 8px; height: 16px; }
+.tip-row + .tip-row { margin-top: 5px; }
+
+.tip-id {
+  flex: none;
+  width: 34px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+
+.tip-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.tip-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.tip-val {
+  flex: none;
+  width: 58px;
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+  color: var(--fg-2);
+}
 
 .toast {
   position: absolute;
@@ -655,7 +769,10 @@ body[data-status="error"] .sb-dot { background: var(--err); }
       <section class="group">
         <div class="group-head">
           <span class="label">GPU</span>
-          <button class="pill" id="btn-merge" title="把同一用户的多个进程合并为一条显示">合并进程</button>
+          <div class="head-actions">
+            <button class="pill" id="btn-servers">选择服务器</button>
+            <button class="pill" id="btn-merge" title="把同一用户的多个进程合并为一条显示">合并进程</button>
+          </div>
         </div>
         <div class="gpu-list" id="gpu-list"></div>
       </section>
@@ -705,6 +822,7 @@ body[data-status="error"] .sb-dot { background: var(--err); }
           <button class="chip on" data-iv="10">10s</button>
           <button class="chip" data-iv="30">30s</button>
           <button class="chip" data-iv="60">60s</button>
+          <input class="chip-input" id="interval-custom" type="number" min="2" max="600" placeholder="自定义">
         </div>
       </div>
       <div class="sheet-row">
@@ -721,6 +839,21 @@ body[data-status="error"] .sb-dot { background: var(--err); }
       </div>
       <div class="more-row" id="more-row">
         <span>更多设置</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+    <!-- 选择服务器 sheet -->
+    <div class="sheet" id="server-sheet">
+      <div class="sheet-head">
+        <div class="sheet-title">选择服务器</div>
+        <button class="icon-btn" id="btn-server-close" title="关闭" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="server-list" id="server-list"></div>
+      <div class="more-row" id="server-add">
+        <span>新建连接</span>
         <span class="arrow">›</span>
       </div>
     </div>
@@ -1038,19 +1171,6 @@ body[data-status="error"] .sb-dot { background: var(--err); }
   }
 
   // ---------------- 渲染 ----------------
-  function summaryText(s) {
-    var memTotal = 0, memUsed = 0, tempMax = 0;
-    s.gpus.forEach(function (g) {
-      memTotal += g.memoryTotal; memUsed += g.memoryUsed;
-      if (g.temperature > tempMax) tempMax = g.temperature;
-    });
-    return 'GPU×' + s.gpus.length +
-      ' 显存 ' + fmtGB(memUsed * 1024 * 1024) + '/' + fmtGB(memTotal * 1024 * 1024) + 'G' +
-      (tempMax ? ' · ' + tempMax + '°C' : '') +
-      ' | CPU ' + (typeof s.cpu.usage === 'number' ? Math.round(s.cpu.usage) : '—') + '%' +
-      ' | RAM ' + fmtGB(s.memory.used) + '/' + fmtGB(s.memory.total) + 'G';
-  }
-
   function vramTotal(s) {
     var used = 0, total = 0;
     s.gpus.forEach(function (g) { used += g.memoryUsed; total += g.memoryTotal; });
@@ -1126,22 +1246,32 @@ body[data-status="error"] .sb-dot { background: var(--err); }
 
   function renderStatusBar() {
     var s = state.snapshot;
-    var text, tip;
+    var text;
+    var tip = $('sb-tooltip');
+    tip.innerHTML = '';
     if (state.status === 'ok' && s) {
       text = vramTotal(s);
-      tip = 'Easy GPU · ' + summaryText(s) + '\n点击打开监控';
+      tip.appendChild(el('div', 'tip-head', '显存 ' + vramTotal(s)));
+      s.gpus.forEach(function (g) {
+        var pct = g.memoryTotal > 0 ? Math.round((g.memoryUsed / g.memoryTotal) * 100) : 0;
+        var row = el('div', 'tip-row');
+        row.innerHTML =
+          '<span class="tip-id">GPU ' + g.index + '</span>' +
+          '<span class="tip-bar"><i style="width:' + clamp(pct, 0, 100) + '%"></i></span>' +
+          '<span class="tip-val">' + fmtGB((g.memoryUsed || 0) * 1024 * 1024) + '/' + fmtGB((g.memoryTotal || 0) * 1024 * 1024) + 'G</span>';
+        tip.appendChild(row);
+      });
     } else if (state.status === 'connecting') {
       text = '连接中…';
-      tip = 'Easy GPU · 连接中…\n点击打开监控';
+      tip.textContent = '连接中…';
     } else if (state.status === 'error') {
       text = '连接失败';
-      tip = 'Easy GPU · 连接失败：' + (state.error || '未知错误') + '\n点击打开监控';
+      tip.textContent = '连接失败';
     } else {
       text = '未连接';
-      tip = 'Easy GPU · 未连接\n点击打开监控';
+      tip.textContent = '未连接';
     }
     $('sb-text').textContent = text;
-    $('sb-tooltip').textContent = tip;
   }
 
   // ---------------- toast ----------------
@@ -1161,12 +1291,59 @@ body[data-status="error"] .sb-dot { background: var(--err); }
   });
 
   $('btn-settings').addEventListener('click', function () {
+    closeSheets();
     $('sidebar').classList.add('sheet-open');
   });
 
-  function closeSheet() { $('sidebar').classList.remove('sheet-open'); }
-  $('btn-sheet-close').addEventListener('click', closeSheet);
-  $('sheet-backdrop').addEventListener('click', closeSheet);
+  function closeSheets() { $('sidebar').classList.remove('sheet-open', 'server-open'); }
+  $('btn-sheet-close').addEventListener('click', closeSheets);
+  $('sheet-backdrop').addEventListener('click', closeSheets);
+
+  // ---------------- 选择服务器（侧边栏内完成） ----------------
+  var servers = [
+    { id: 's1', name: 'wzszju@gpu-lab', sub: '192.168.91.253 · 内置客户端' },
+    { id: 's2', name: 'wzszju@gpu-lab-02', sub: '192.168.91.254 · 内置客户端' },
+    { id: 's3', name: 'admin@10.0.0.8', sub: '10.0.0.8 · 系统 ssh' }
+  ];
+  var currentServer = 's1';
+
+  function renderServerList() {
+    var list = $('server-list');
+    list.innerHTML = '';
+    servers.forEach(function (sv) {
+      var row = el('div', 'server-row' + (sv.id === currentServer ? ' current' : ''));
+      row.innerHTML =
+        '<div class="server-main"><div class="server-name"></div><div class="server-sub"></div></div>' +
+        '<svg class="server-check" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+      row.querySelector('.server-name').textContent = sv.name;
+      row.querySelector('.server-sub').textContent = sv.sub;
+      row.addEventListener('click', function () {
+        if (sv.id === currentServer) { closeSheets(); return; }
+        currentServer = sv.id;
+        closeSheets();
+        state.host = sv.name;
+        state.status = 'connecting';
+        render();
+        toast('已切换到 ' + sv.name);
+        setTimeout(function () {
+          state.status = 'ok';
+          applySnapshot(makeSnapshot());
+        }, 800);
+      });
+      list.appendChild(row);
+    });
+  }
+
+  $('btn-servers').addEventListener('click', function () {
+    closeSheets();
+    renderServerList();
+    $('sidebar').classList.add('server-open');
+  });
+  $('btn-server-close').addEventListener('click', closeSheets);
+  $('server-add').addEventListener('click', function () {
+    closeSheets();
+    toast('新建连接向导');
+  });
 
   // 合并进程开关
   $('btn-merge').addEventListener('click', function () {
@@ -1181,15 +1358,36 @@ body[data-status="error"] .sb-dot { background: var(--err); }
     toast(config.mergeProcesses ? '合并进程：开' : '合并进程：关');
   });
 
-  // 刷新间隔 chips
+  // 刷新间隔：预设 chips + 自定义输入（2–600）
+  function applyInterval(value) {
+    config.refreshInterval = value;
+    $('interval-label').textContent = value + 's';
+    var isPreset = [5, 10, 30, 60].indexOf(value) !== -1;
+    Array.prototype.forEach.call($('interval-chips').querySelectorAll('.chip'), function (c) {
+      c.classList.toggle('on', Number(c.dataset.iv) === value);
+    });
+    var input = $('interval-custom');
+    input.classList.toggle('on', !isPreset);
+    input.value = isPreset ? '' : value;
+  }
+
   $('interval-chips').addEventListener('click', function (e) {
     var chip = e.target.closest('.chip');
     if (!chip) return;
-    config.refreshInterval = Number(chip.dataset.iv);
-    Array.prototype.forEach.call($('interval-chips').children, function (c) {
-      c.classList.toggle('on', c === chip);
-    });
-    $('interval-label').textContent = config.refreshInterval + 's';
+    applyInterval(Number(chip.dataset.iv));
+  });
+
+  $('interval-custom').addEventListener('change', function () {
+    var v = Math.round(Number($('interval-custom').value));
+    if (!Number.isFinite(v) || v < 2 || v > 600) {
+      applyInterval(config.refreshInterval);
+      return;
+    }
+    applyInterval(v);
+  });
+
+  $('interval-custom').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('interval-custom').blur();
   });
 
   // 颜色 swatches
@@ -1205,7 +1403,7 @@ body[data-status="error"] .sb-dot { background: var(--err); }
   });
 
   $('more-row').addEventListener('click', function () {
-    closeSheet();
+    closeSheets();
     toast('更多设置 → 打开 VS Code 设置（easy-gpu）');
   });
 
@@ -1268,10 +1466,7 @@ body[data-status="error"] .sb-dot { background: var(--err); }
 
   // 初始化
   $('btn-merge').classList.toggle('on', config.mergeProcesses);
-  Array.prototype.forEach.call($('interval-chips').children, function (c) {
-    c.classList.toggle('on', Number(c.dataset.iv) === config.refreshInterval);
-  });
-  $('interval-label').textContent = config.refreshInterval + 's';
+  applyInterval(config.refreshInterval);
   Array.prototype.forEach.call($('swatches').children, function (c) {
     c.classList.toggle('on', c.dataset.c === config.accentColor);
   });
